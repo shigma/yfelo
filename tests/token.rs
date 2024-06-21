@@ -18,7 +18,7 @@ pub fn example_2() {
 
 #[test]
 pub fn example_3() {
-    let err = tokenize("{world").unwrap_err();
-    assert_eq!(err.message, "unmatched tag syntax");
-    assert_eq!(err.position, 0);
+    let err = tokenize("{Hello} {world").unwrap_err();
+    assert_eq!(err.message, "unterminated tag syntax");
+    assert_eq!(err.position, 8);
 }

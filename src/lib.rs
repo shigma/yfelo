@@ -4,7 +4,12 @@ pub struct Element<T> {
     pub name: T,
     pub header: T,
     pub footer: T,
-    pub body: Vec<Node<T>>,
+    pub children: Vec<Node<T>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Expression<T> {
+    pub content: T,
 }
 
 #[derive(Debug, Clone)]
@@ -16,6 +21,7 @@ pub struct Tag<T> {
 #[derive(Debug, Clone)]
 pub enum Node<T> {
     Text(T),
+    Expr(Expression<T>),
     Element(Element<T>),
     Branch(Tag<T>),
 }
@@ -48,7 +54,7 @@ pub fn tokenize(mut src: &str) -> Result<Vec<Token<&str>>, ParseError> {
             position += end + 2;
         } else {
             return Err(ParseError {
-                message: format!("unmatched tag syntax"),
+                message: format!("unterminated tag syntax"),
                 position,
             });
         }
@@ -59,10 +65,84 @@ pub fn tokenize(mut src: &str) -> Result<Vec<Token<&str>>, ParseError> {
     Ok(nodes)
 }
 
-// text
-// {#name header}
-//   text
-//   {@name header}
-// {/name footer}
+fn split(content: &str) -> (&str, &str) {
+    if let Some(pos) = content.find(char::is_whitespace) {
+        (&content[..pos], &content[pos + 1..].trim())
+    } else {
+        (content, "")
+    }
+}
 
-pub fn parse() {}
+pub fn parse(src: &str) -> Result<Vec<Node<&str>>, ParseError> {
+    let tokens = tokenize(src)?;
+    let mut stack = vec![Element {
+        name: "",
+        header: "",
+        footer: "",
+        children: vec![],
+    }];
+    for token in tokens {
+        match token {
+            Token::Text(text) => {
+                stack.last_mut().unwrap().children.push(Node::Text(text))
+            },
+            Token::Tag(content) => {
+                if let Some(c @ ('#' | '/' | ':' | '@')) = content.chars().nth(0) {
+                    let (name, header) = split(&content[1..]);
+                    if name.len() == 0 {
+                        return Err(ParseError {
+                            message: format!("empty tag name"),
+                            position: 0,
+                        });
+                    }
+                    match c {
+                        '#' => {
+                            stack.push(Element {
+                                name,
+                                header,
+                                footer: "",
+                                children: vec![],
+                            });
+                        },
+                        '/' => {
+                            let element = stack.pop().unwrap();
+                            if element.name != name {
+                                return Err(ParseError {
+                                    message: format!("unmatched tag name"),
+                                    position: 0,
+                                });
+                            }
+                            stack.last_mut().unwrap().children.push(Node::Element(element));
+                        },
+                        '@' => {
+                            stack.last_mut().unwrap().children.push(Node::Element(Element {
+                                name,
+                                header,
+                                footer: "",
+                                children: vec![],
+                            }));
+                        },
+                        ':' => {
+                            stack.last_mut().unwrap().children.push(Node::Branch(Tag {
+                                name,
+                                header,
+                            }));
+                        },
+                        _ => unreachable!(),
+                    }
+                } else {
+                    stack.last_mut().unwrap().children.push(Node::Expr(Expression {
+                        content,
+                    }));
+                }
+            },
+        }
+    }
+    if stack.len() > 1 {
+        return Err(ParseError {
+            message: format!("unmatched tag name"),
+            position: 0,
+        });
+    }
+    Ok(stack.pop().unwrap().children)
+}
