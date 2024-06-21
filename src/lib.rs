@@ -1,5 +1,5 @@
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Element<T> {
     pub name: T,
     pub header: T,
@@ -7,21 +7,21 @@ pub struct Element<T> {
     pub children: Vec<Node<T>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Expression<T> {
     pub content: T,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Tag<T> {
     pub name: T,
     pub header: T,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Node<T> {
     Text(T),
-    Expr(Expression<T>),
+    Expr(T),
     Element(Element<T>),
     Branch(Tag<T>),
 }
@@ -29,13 +29,13 @@ pub enum Node<T> {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token<T> {
     Text(T),
-    Tag(T),
+    Tag(T, (usize, usize)),
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParseError {
     pub message: String,
-    pub position: usize,
+    pub range: (usize, usize),
 }
 
 pub fn tokenize(mut src: &str) -> Result<Vec<Token<&str>>, ParseError> {
@@ -46,16 +46,16 @@ pub fn tokenize(mut src: &str) -> Result<Vec<Token<&str>>, ParseError> {
             nodes.push(Token::Text(&src[..pos]));
         }
         src = &src[pos + 1..];
-        position += pos;
+        position += pos + 1;
         if let Some(end) = src.find("}") {
             let tag = &src[..end];
-            nodes.push(Token::Tag(tag));
+            nodes.push(Token::Tag(tag, (position, position + end)));
             src = &src[end + 1..];
-            position += end + 2;
+            position += end + 1;
         } else {
             return Err(ParseError {
                 message: format!("unterminated tag syntax"),
-                position,
+                range: (position - 1, position),
             });
         }
     }
@@ -75,47 +75,47 @@ fn split(content: &str) -> (&str, &str) {
 
 pub fn parse(src: &str) -> Result<Vec<Node<&str>>, ParseError> {
     let tokens = tokenize(src)?;
-    let mut stack = vec![Element {
+    let mut stack = vec![(Element {
         name: "",
         header: "",
         footer: "",
         children: vec![],
-    }];
+    }, (0, 0))];
     for token in tokens {
         match token {
             Token::Text(text) => {
-                stack.last_mut().unwrap().children.push(Node::Text(text))
+                stack.last_mut().unwrap().0.children.push(Node::Text(text))
             },
-            Token::Tag(content) => {
+            Token::Tag(content, range) => {
                 if let Some(c @ ('#' | '/' | ':' | '@')) = content.chars().nth(0) {
                     let (name, header) = split(&content[1..]);
                     if name.len() == 0 {
                         return Err(ParseError {
                             message: format!("empty tag name"),
-                            position: 0,
+                            range,
                         });
                     }
                     match c {
                         '#' => {
-                            stack.push(Element {
+                            stack.push((Element {
                                 name,
                                 header,
                                 footer: "",
                                 children: vec![],
-                            });
+                            }, range));
                         },
                         '/' => {
-                            let element = stack.pop().unwrap();
+                            let element = stack.pop().unwrap().0;
                             if element.name != name {
                                 return Err(ParseError {
                                     message: format!("unmatched tag name"),
-                                    position: 0,
+                                    range,
                                 });
                             }
-                            stack.last_mut().unwrap().children.push(Node::Element(element));
+                            stack.last_mut().unwrap().0.children.push(Node::Element(element));
                         },
                         '@' => {
-                            stack.last_mut().unwrap().children.push(Node::Element(Element {
+                            stack.last_mut().unwrap().0.children.push(Node::Element(Element {
                                 name,
                                 header,
                                 footer: "",
@@ -123,7 +123,7 @@ pub fn parse(src: &str) -> Result<Vec<Node<&str>>, ParseError> {
                             }));
                         },
                         ':' => {
-                            stack.last_mut().unwrap().children.push(Node::Branch(Tag {
+                            stack.last_mut().unwrap().0.children.push(Node::Branch(Tag {
                                 name,
                                 header,
                             }));
@@ -131,9 +131,7 @@ pub fn parse(src: &str) -> Result<Vec<Node<&str>>, ParseError> {
                         _ => unreachable!(),
                     }
                 } else {
-                    stack.last_mut().unwrap().children.push(Node::Expr(Expression {
-                        content,
-                    }));
+                    stack.last_mut().unwrap().0.children.push(Node::Expr(content.trim()));
                 }
             },
         }
@@ -141,8 +139,8 @@ pub fn parse(src: &str) -> Result<Vec<Node<&str>>, ParseError> {
     if stack.len() > 1 {
         return Err(ParseError {
             message: format!("unmatched tag name"),
-            position: 0,
+            range: stack.last().unwrap().1,
         });
     }
-    Ok(stack.pop().unwrap().children)
+    Ok(stack.pop().unwrap().0.children)
 }
