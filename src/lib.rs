@@ -1,5 +1,7 @@
 use std::collections::HashMap;
+use std::rc::Rc;
 
+use pest::error::InputLocation;
 use pest_meta::ast::{Expr, Rule, RuleType};
 use pest_meta::optimizer::optimize;
 use pest_vm::Vm;
@@ -64,9 +66,9 @@ macro_rules! expr {
 }
 
 fn join(exprs: Vec<Expr>, f: fn(Box<Expr>, Box<Expr>) -> Expr) -> Expr {
-    let mut iter = exprs.into_iter();
+    let mut iter = exprs.into_iter().rev();
     let first = iter.next().unwrap();
-    iter.fold(first, |acc, expr| f(Box::new(acc), Box::new(expr)))
+    iter.fold(first, |acc, expr| f(Box::new(expr), Box::new(acc)))
 }
 
 pub struct Interpreter {
@@ -84,13 +86,13 @@ impl Interpreter {
                     Expr::NegPred(Box::new(expr!("EXIT"))),
                     "main",
                 ])),
-                "EXIT",
+                Expr::PosPred(Box::new(expr!("EXIT"))),
             ],
         }];
-        let count = grammar.len();
-        for (index, (name, syntax)) in grammar.into_iter().enumerate() {
+        for (name, syntax) in grammar {
             let mut neg = vec![];
-            for syn in syntax {
+            let count = syntax.len();
+            for (index, syn) in syntax.into_iter().enumerate() {
                 match syn {
                     Syntax::Bracket(left, right, inner) => {
                         neg.push(Expr::Str(left.clone()));
@@ -138,17 +140,17 @@ impl Interpreter {
     }
 }
 
-pub struct Yfelo<'i> {
+pub struct Yfelo {
     left: String,
     #[allow(dead_code)]
     right: String,
     parser: Vm,
     #[allow(dead_code)]
-    interpreter: &'i Interpreter,
+    interpreter: Rc<Interpreter>,
 }
 
-impl<'i> Yfelo<'i> {
-    pub fn new(left: String, right: String, interpreter: &'i Interpreter) -> Self {
+impl Yfelo {
+    pub fn new(left: String, right: String, interpreter: Rc<Interpreter>) -> Self {
         let mut rules = interpreter.rules.clone();
         rules.push(Rule {
             name: "EXIT".to_string(),
@@ -164,27 +166,28 @@ impl<'i> Yfelo<'i> {
         }
     }
 
-    pub fn tokenize(&'i self, mut input: &'i str) -> Result<Vec<Token<'i>>, ParseError> {
+    pub fn tokenize<'i>(&'i self, mut input: &'i str) -> Result<Vec<Token<'i>>, ParseError> {
         let mut nodes = vec![];
-        let mut position = 0;
+        let mut offset = 0;
         while let Some(pos) = input.find(&self.left) {
             if pos > 0 {
                 nodes.push(Token::Text(&input[..pos]));
             }
             input = &input[pos + 1..];
-            position += pos + 1;
+            offset += pos + 1;
             match self.parser.parse("ENTRY", input) {
                 Ok(pairs) => {
                     let tag = pairs.as_str();
                     let end = tag.len();
-                    nodes.push(Token::Tag(tag, (position, position + end)));
+                    nodes.push(Token::Tag(tag, (offset, offset + end)));
                     input = &input[end + 1..];
-                    position += end + 1;
+                    offset += end + 1;
                 },
-                Err(_) => {
+                Err(err) => {
+                    println!("Error: {}", err);
                     return Err(ParseError {
                         message: format!("unterminated tag syntax"),
-                        range: (position - 1, position),
+                        range: (offset - 1, offset),
                     });
                 },
             }
@@ -203,7 +206,7 @@ impl<'i> Yfelo<'i> {
         }
     }
 
-    pub fn parse(&'i self, input: &'i str) -> Result<Vec<Node<'i>>, ParseError> {
+    pub fn parse<'i>(&'i self, input: &'i str) -> Result<Vec<Node<'i>>, ParseError> {
         let tokens = self.tokenize(input)?;
         let mut stack = vec![(Element {
             name: "",
