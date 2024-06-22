@@ -1,8 +1,16 @@
-use yfelo::{parse, tokenize, Node, Token};
+use once_cell::sync::Lazy;
+use yfelo::{parse, tokenize, Config, Node, Token};
+
+const CONFIG: Lazy<Config> = Lazy::new(|| {
+    Config {
+        left: "{",
+        right: "}",
+    }
+});
 
 #[test]
 pub fn tokenize_1() {
-    let tokens = tokenize("Hello {world}!").unwrap();
+    let tokens = tokenize("Hello {world}!", &CONFIG).unwrap();
     assert_eq!(tokens.len(), 3);
     assert_eq!(tokens[0], Token::Text("Hello "));
     assert_eq!(tokens[1], Token::Tag("world", (7, 12)));
@@ -11,21 +19,21 @@ pub fn tokenize_1() {
 
 #[test]
 pub fn tokenize_2() {
-    let tokens = tokenize("{world}").unwrap();
+    let tokens = tokenize("{world}", &CONFIG).unwrap();
     assert_eq!(tokens.len(), 1);
     assert_eq!(tokens[0], Token::Tag("world", (1, 6)));
 }
 
 #[test]
 pub fn unterminated_tag() {
-    let err = tokenize("{Hello} {world").unwrap_err();
+    let err = tokenize("{Hello} {world", &CONFIG).unwrap_err();
     assert_eq!(err.message, "unterminated tag syntax");
     assert_eq!(err.range, (8, 9));
 }
 
 #[test]
 pub fn parse_1() {
-    let nodes = parse("Hello {world}!").unwrap();
+    let nodes = parse("Hello {world}!", &CONFIG).unwrap();
     assert_eq!(nodes.len(), 3);
     assert_eq!(nodes[0], Node::Text("Hello "));
     assert_eq!(nodes[1], Node::Expr("world"));
@@ -34,7 +42,7 @@ pub fn parse_1() {
 
 #[test]
 pub fn parse_2() {
-    let nodes = parse("{#foo}Hello{/foo} {#bar}world{/bar}!").unwrap();
+    let nodes = parse("{#foo}Hello{/foo} {#bar}world{/bar}!", &CONFIG).unwrap();
     assert_eq!(nodes.len(), 4);
     if let Node::Element(element) = &nodes[0] {
         assert_eq!(element.name, "foo");
@@ -56,7 +64,7 @@ pub fn parse_2() {
 
 #[test]
 pub fn parse_3() {
-    let nodes = parse("{#foo}Hello {#bar}world{/bar}!{/foo}").unwrap();
+    let nodes = parse("{#foo}Hello {#bar}world{/bar}!{/foo}", &CONFIG).unwrap();
     assert_eq!(nodes.len(), 1);
     if let Node::Element(element) = &nodes[0] {
         assert_eq!(element.name, "foo");
@@ -77,14 +85,14 @@ pub fn parse_3() {
 
 #[test]
 pub fn unmatched_tag_1() {
-    let error = parse("{#foo}Hello {#bar}world{/foo}!{/bar}").unwrap_err();
+    let error = parse("{#foo}Hello {#bar}world{/foo}!{/bar}", &CONFIG).unwrap_err();
     assert_eq!(error.message, "unmatched tag name");
     assert_eq!(error.range, (24, 28));
 }
 
 #[test]
 pub fn unmatched_tag_2() {
-    let error = parse("{#foo}Hello{/foo} world{/bar}!").unwrap_err();
+    let error = parse("{#foo}Hello{/foo} world{/bar}!", &CONFIG).unwrap_err();
     assert_eq!(error.message, "unmatched tag name");
     assert_eq!(error.range, (24, 28));
 }

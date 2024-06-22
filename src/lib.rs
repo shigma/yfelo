@@ -1,35 +1,34 @@
-
 #[derive(Debug, Clone, PartialEq)]
-pub struct Element<T> {
-    pub name: T,
-    pub header: T,
-    pub footer: T,
-    pub children: Vec<Node<T>>,
+pub struct Element<'i> {
+    pub name: &'i str,
+    pub header: &'i str,
+    pub footer: &'i str,
+    pub children: Vec<Node<'i>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Expression<T> {
-    pub content: T,
+pub struct Expression<'i> {
+    pub content: &'i str,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Tag<T> {
-    pub name: T,
-    pub header: T,
+pub struct Tag<'i> {
+    pub name: &'i str,
+    pub header: &'i str,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Node<T> {
-    Text(T),
-    Expr(T),
-    Element(Element<T>),
-    Branch(Tag<T>),
+pub enum Node<'i> {
+    Text(&'i str),
+    Expr(&'i str),
+    Element(Element<'i>),
+    Branch(Tag<'i>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Token<T> {
-    Text(T),
-    Tag(T, (usize, usize)),
+pub enum Token<'i> {
+    Text(&'i str),
+    Tag(&'i str, (usize, usize)),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -38,16 +37,26 @@ pub struct ParseError {
     pub range: (usize, usize),
 }
 
-pub fn tokenize(mut src: &str) -> Result<Vec<Token<&str>>, ParseError> {
+pub trait Interpreter {
+    fn pairs(&self) -> Vec<(String, String)>;
+    fn evaluate(&self, line: &str);
+}
+
+pub struct Config<'i> {
+    pub left: &'i str,
+    pub right: &'i str,
+}
+
+pub fn tokenize<'i>(mut src: &'i str, config: &Config) -> Result<Vec<Token<'i>>, ParseError> {
     let mut nodes = vec![];
     let mut position = 0;
-    while let Some(pos) = src.find("{") {
+    while let Some(pos) = src.find(config.left) {
         if pos > 0 {
             nodes.push(Token::Text(&src[..pos]));
         }
         src = &src[pos + 1..];
         position += pos + 1;
-        if let Some(end) = src.find("}") {
+        if let Some(end) = src.find(config.right) {
             let tag = &src[..end];
             nodes.push(Token::Tag(tag, (position, position + end)));
             src = &src[end + 1..];
@@ -73,8 +82,8 @@ fn split(content: &str) -> (&str, &str) {
     }
 }
 
-pub fn parse(src: &str) -> Result<Vec<Node<&str>>, ParseError> {
-    let tokens = tokenize(src)?;
+pub fn parse<'i>(src: &'i str, config: &Config) -> Result<Vec<Node<'i>>, ParseError> {
+    let tokens = tokenize(src, config)?;
     let mut stack = vec![(Element {
         name: "",
         header: "",
