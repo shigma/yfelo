@@ -1,10 +1,10 @@
 use std::any::Any;
 
 use crate::error::SyntaxError;
-use crate::parser::Input;
+use crate::reader::Reader;
 
 pub trait Directive {
-    fn parse(&self, input: &mut Input) -> Result<Box<dyn Any>, SyntaxError>;
+    fn parse(&self, reader: &mut Reader) -> Result<Box<dyn Any>, SyntaxError>;
 }
 
 pub struct IfMeta {
@@ -14,9 +14,9 @@ pub struct IfMeta {
 pub struct If;
 
 impl Directive for If {
-    fn parse(&self, input: &mut Input) -> Result<Box<dyn Any>, SyntaxError> {
-        let expr = input.expect_expr()?;
-        input.expect_close()?;
+    fn parse(&self, reader: &mut Reader) -> Result<Box<dyn Any>, SyntaxError> {
+        let expr = reader.parse_expr()?;
+        reader.tag_close()?;
         Ok(Box::new(IfMeta { expr }))
     }
 }
@@ -29,11 +29,11 @@ pub struct ForMeta {
 pub struct For;
 
 impl Directive for For {
-    fn parse(&self, input: &mut Input) -> Result<Box<dyn Any>, SyntaxError> {
-        let item = input.expect_pattern()?;
-        input.expect_keyword("in")?;
-        let expr = input.expect_expr()?;
-        input.expect_close()?;
+    fn parse(&self, reader: &mut Reader) -> Result<Box<dyn Any>, SyntaxError> {
+        let item = reader.parse_pattern()?;
+        reader.parse_keyword("in")?;
+        let expr = reader.parse_expr()?;
+        reader.tag_close()?;
         Ok(Box::new(ForMeta { item, expr }))
     }
 }

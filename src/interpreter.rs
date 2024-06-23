@@ -6,7 +6,7 @@ use pest_meta::ast;
 use serde_json::Value;
 
 use crate::error::{Error, SyntaxError};
-use crate::parser::Input;
+use crate::reader::Reader;
 
 #[derive(Parser)]
 #[grammar = "default.pest"]
@@ -19,10 +19,10 @@ pub trait Interpreter {
     // type Value;
     // type Error;
 
-    fn parse_expr(&self, input: &mut Input) -> Result<Box<dyn Any>, SyntaxError>;
-    fn parse_pattern(&self, input: &mut Input) -> Result<Box<dyn Any>, SyntaxError>;
+    fn parse_expr(&self, reader: &mut Reader) -> Result<Box<dyn Any>, SyntaxError>;
+    fn parse_pattern(&self, reader: &mut Reader) -> Result<Box<dyn Any>, SyntaxError>;
     fn rules(&self) -> Vec<ast::Rule>;
-    // fn eval(&self, input: &str, ctx: &Self::Context) -> Result<Self::Value, Error<Self::Error>>;
+    // fn eval(&self, reader: &str, ctx: &Self::Context) -> Result<Self::Value, Error<Self::Error>>;
     // fn serialize(&self, value: &Self::Value) -> String;
 }
 
@@ -67,27 +67,29 @@ impl Interpreter for DefaultInterpreter {
     // type Value = Value;
     // type Error = ();
 
-    fn parse_expr(&self, input: &mut Input) -> Result<Box<dyn Any>, SyntaxError> {
-        let pairs = match DefaultParser::parse(Rule::expr, input.source) {
+    fn parse_expr(&self, reader: &mut Reader) -> Result<Box<dyn Any>, SyntaxError> {
+        let pairs = match DefaultParser::parse(Rule::expr, reader.source) {
             Ok(v) => v,
             Err(e) => return Err(SyntaxError {
                 message: e.to_string(),
                 range: (0, 0), // TODO
             }),
         };
-        input.shift(pairs.as_str().len());
+        reader.skip(pairs.as_str().len());
+        reader.trim_start();
         Ok(Box::new(()))
     }
 
-    fn parse_pattern(&self, input: &mut Input) -> Result<Box<dyn Any>, SyntaxError> {
-        let pairs = match DefaultParser::parse(Rule::ident, input.source) {
+    fn parse_pattern(&self, reader: &mut Reader) -> Result<Box<dyn Any>, SyntaxError> {
+        let pairs = match DefaultParser::parse(Rule::ident, reader.source) {
             Ok(v) => v,
             Err(e) => return Err(SyntaxError {
                 message: e.to_string(),
                 range: (0, 0), // TODO
             }),
         };
-        input.shift(pairs.as_str().len());
+        reader.skip(pairs.as_str().len());
+        reader.trim_start();
         Ok(Box::new(()))
     }
 
@@ -164,8 +166,8 @@ impl Interpreter for DefaultInterpreter {
 }
 
 impl DefaultInterpreter {
-    fn eval(&self, input: &str, _: &Value) -> Result<Value, Error<()>> {
-        let _ = match DefaultParser::parse(Rule::expr, input) {
+    fn eval(&self, reader: &str, _: &Value) -> Result<Value, Error<()>> {
+        let _ = match DefaultParser::parse(Rule::expr, reader) {
             Ok(v) => v,
             Err(e) => return Err(Error::Syntax(SyntaxError {
                 message: e.to_string(),
