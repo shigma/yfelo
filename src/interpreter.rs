@@ -10,10 +10,14 @@ use serde_json::Value;
 struct DefaultParser;
 
 pub trait Interpreter {
+    type Expr;
+    type Pattern;
     type Context;
     type Value;
     type Error;
 
+    fn parse_expr(&self, input: &mut Input) -> Result<Self::Expr, SyntaxError>;
+    fn parse_pattern(&self, input: &mut Input) -> Result<Self::Pattern, SyntaxError>;
     fn rules(&self) -> Vec<ast::Rule>;
     fn eval(&self, input: &str, ctx: &Self::Context) -> Result<Self::Value, Error<Self::Error>>;
     fn serialize(&self, value: &Self::Value) -> String;
@@ -40,6 +44,28 @@ fn join(exprs: Vec<ast::Expr>, f: fn(Box<ast::Expr>, Box<ast::Expr>) -> ast::Exp
     iter.fold(first, |acc, expr| f(Box::new(expr), Box::new(acc)))
 }
 
+pub struct Input<'i>(pub &'i str, pub usize);
+
+impl<'i> Input<'i> {
+    pub fn shift(&mut self, offset: usize) {
+        let old_len = self.0.len();
+        self.0 = self.0[offset..].trim_start();
+        self.1 += old_len - self.0.len();
+    }
+
+    pub fn expect_word(&mut self, word: &str) -> Result<(), SyntaxError> {
+        if self.0.starts_with(word) && !self.0[word.len()..].starts_with(|c: char| c.is_ascii_alphanumeric()) {
+            self.shift(word.len());
+            Ok(())
+        } else {
+            Err(SyntaxError {
+                message: format!("expected keyword {}", word),
+                range: (self.1, self.1 + 1),
+            })
+        }
+    }
+}
+
 pub struct DefaultInterpreter;
 
 pub enum Syntax {
@@ -54,9 +80,35 @@ macro_rules! syntax {
 }
 
 impl Interpreter for DefaultInterpreter {
+    type Expr = ();
+    type Pattern = ();
     type Context = Value;
     type Value = Value;
     type Error = ();
+
+    fn parse_expr(&self, input: &mut Input) -> Result<Self::Expr, SyntaxError> {
+        let pairs = match DefaultParser::parse(Rule::expr, input.0) {
+            Ok(v) => v,
+            Err(e) => return Err(SyntaxError {
+                message: e.to_string(),
+                range: (0, 0), // TODO
+            }),
+        };
+        input.shift(pairs.as_str().len());
+        Ok(())
+    }
+
+    fn parse_pattern(&self, input: &mut Input) -> Result<Self::Pattern, SyntaxError> {
+        let pairs = match DefaultParser::parse(Rule::ident, input.0) {
+            Ok(v) => v,
+            Err(e) => return Err(SyntaxError {
+                message: e.to_string(),
+                range: (0, 0), // TODO
+            }),
+        };
+        input.shift(pairs.as_str().len());
+        Ok(())
+    }
 
     fn rules(&self) -> Vec<ast::Rule> {
         let mut grammar = HashMap::new();

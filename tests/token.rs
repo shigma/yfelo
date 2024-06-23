@@ -1,13 +1,10 @@
-use std::rc::Rc;
-
 use once_cell::sync::Lazy;
 use serde_json::Value;
 use yfelo::{Interpreter, Node, Token, Yfelo};
 use yfelo::interpreter::DefaultInterpreter;
 
-const YFELO: Lazy<Yfelo<Value, Value, <DefaultInterpreter as Interpreter>::Error>> = Lazy::new(|| {
-    let interpreter = Rc::new(DefaultInterpreter);
-    Yfelo::new("{".to_string(), "}".to_string(), interpreter)
+const YFELO: Lazy<Yfelo<(), (), Value, Value, <DefaultInterpreter as Interpreter>::Error>> = Lazy::new(|| {
+    Yfelo::new("{".to_string(), "}".to_string(), Box::leak(Box::new(DefaultInterpreter)))
 });
 
 #[test]

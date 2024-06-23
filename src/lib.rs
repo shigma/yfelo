@@ -1,8 +1,6 @@
 #[macro_use]
 extern crate pest_derive;
 
-use std::rc::Rc;
-
 use pest::error::InputLocation;
 use pest_meta::ast::{Expr, Rule, RuleType};
 use pest_meta::optimizer::optimize;
@@ -49,17 +47,16 @@ pub enum Token<'i> {
     Tag(&'i str, (usize, usize)),
 }
 
-pub struct Yfelo<C, V, E> {
+pub struct Yfelo<'i, E, P, C, V, R> {
     left: String,
     #[allow(dead_code)]
     right: String,
     parser: Vm,
-    #[allow(dead_code)]
-    interpreter: Rc<dyn Interpreter<Context = C, Value = V, Error = E>>,
+    interpreter: &'i dyn Interpreter<Expr = E, Pattern = P, Context = C, Value = V, Error = R>,
 }
 
-impl<C, V, E> Yfelo<C, V, E> {
-    pub fn new(left: String, right: String, interpreter: Rc<dyn Interpreter<Context = C, Value = V, Error = E>>) -> Self {
+impl<'i, E, P, C, V, R> Yfelo<'i, E, P, C, V, R> {
+    pub fn new(left: String, right: String, interpreter: &'i dyn Interpreter<Expr = E, Pattern = P, Context = C, Value = V, Error = R>) -> Self {
         let mut rules = interpreter.rules().clone();
         rules.push(Rule {
             name: "EXIT".to_string(),
@@ -75,7 +72,7 @@ impl<C, V, E> Yfelo<C, V, E> {
         }
     }
 
-    pub fn tokenize<'i>(&'i self, mut input: &'i str) -> Result<Vec<Token<'i>>, SyntaxError> {
+    pub fn tokenize(&'i self, mut input: &'i str) -> Result<Vec<Token<'i>>, SyntaxError> {
         let mut nodes = vec![];
         let mut offset = 0;
         while let Some(pos) = input.find(&self.left) {
@@ -128,7 +125,7 @@ impl<C, V, E> Yfelo<C, V, E> {
         }
     }
 
-    pub fn parse<'i>(&'i self, input: &'i str) -> Result<Vec<Node<'i>>, SyntaxError> {
+    pub fn parse(&'i self, input: &'i str) -> Result<Vec<Node<'i>>, SyntaxError> {
         let tokens = self.tokenize(input)?;
         let mut stack = vec![(Element {
             name: "",
@@ -200,12 +197,12 @@ impl<C, V, E> Yfelo<C, V, E> {
         Ok(stack.pop().unwrap().0.children)
     }
 
-    pub fn transform<'i>(&'i self, input: &'i str, ctx: &'i C) -> Result<String, Error<E>> {
+    pub fn transform(&'i self, input: &'i str, ctx: &'i C) -> Result<String, Error<R>> {
         let nodes = self.parse(input).map_err(|e| Error::Syntax(e))?;
         self.transform_nodes(nodes, ctx)
     }
 
-    fn transform_nodes<'i>(&'i self, nodes: Vec<Node<'i>>, ctx: &'i C) -> Result<String, Error<E>> {
+    fn transform_nodes(&'i self, nodes: Vec<Node<'i>>, ctx: &'i C) -> Result<String, Error<R>> {
         let mut output = String::new();
         for node in nodes {
             match node {
