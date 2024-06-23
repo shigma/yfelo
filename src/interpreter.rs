@@ -16,6 +16,7 @@ pub trait Interpreter {
 
     fn rules(&self) -> Vec<ast::Rule>;
     fn eval(&self, input: &str, ctx: &Self::Context) -> Result<Self::Value, Error<Self::Error>>;
+    fn serialize(&self, value: &Self::Value) -> String;
 }
 
 macro_rules! expr {
@@ -137,5 +138,9 @@ impl Interpreter for DefaultInterpreter {
             })),
         };
         Ok(Value::Null)
+    }
+
+    fn serialize(&self, value: &Self::Value) -> String {
+        value.to_string()
     }
 }

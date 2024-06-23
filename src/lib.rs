@@ -7,13 +7,14 @@ use pest::error::InputLocation;
 use pest_meta::ast::{Expr, Rule, RuleType};
 use pest_meta::optimizer::optimize;
 use pest_vm::Vm;
-use serde_json::Value;
 
-use crate::error::SyntaxError;
-pub use crate::eval::{DefaultInterpreter, Interpreter};
+pub use crate::directive::Directive;
+pub use crate::error::{Error, SyntaxError};
+pub use crate::interpreter::Interpreter;
 
-mod error;
-mod eval;
+pub mod directive;
+pub mod error;
+pub mod interpreter;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Element<'i> {
@@ -199,5 +200,23 @@ impl<C, V, E> Yfelo<C, V, E> {
         Ok(stack.pop().unwrap().0.children)
     }
 
-    pub fn transform<'i>(&'i self, input: &'i str, ctx: &'i Value) -> () {}
+    pub fn transform<'i>(&'i self, input: &'i str, ctx: &'i C) -> Result<String, Error<E>> {
+        let nodes = self.parse(input).map_err(|e| Error::Syntax(e))?;
+        self.transform_nodes(nodes, ctx)
+    }
+
+    fn transform_nodes<'i>(&'i self, nodes: Vec<Node<'i>>, ctx: &'i C) -> Result<String, Error<E>> {
+        let mut output = String::new();
+        for node in nodes {
+            match node {
+                Node::Text(text) => output += text,
+                Node::Expr(expr) => {
+                    let value = self.interpreter.eval(expr, ctx)?;
+                    output += &self.interpreter.serialize(&value);
+                },
+                _ => unimplemented!(),
+            }
+        }
+        Ok(output)
+    }
 }
