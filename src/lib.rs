@@ -1,12 +1,18 @@
+#[macro_use]
+extern crate pest_derive;
+
 use std::rc::Rc;
 
 use pest::error::InputLocation;
 use pest_meta::ast::{Expr, Rule, RuleType};
 use pest_meta::optimizer::optimize;
 use pest_vm::Vm;
+use serde_json::Value;
 
-pub use eval::DefaultInterpreter;
+use crate::error::SyntaxError;
+pub use crate::eval::{DefaultInterpreter, Interpreter};
 
+mod error;
 mod eval;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -42,27 +48,17 @@ pub enum Token<'i> {
     Tag(&'i str, (usize, usize)),
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct ParseError {
-    pub message: String,
-    pub range: (usize, usize),
-}
-
-pub trait Interpreter {
-    fn rules(&self) -> Vec<Rule>;
-}
-
-pub struct Yfelo {
+pub struct Yfelo<C, V, E> {
     left: String,
     #[allow(dead_code)]
     right: String,
     parser: Vm,
     #[allow(dead_code)]
-    interpreter: Rc<dyn Interpreter>,
+    interpreter: Rc<dyn Interpreter<Context = C, Value = V, Error = E>>,
 }
 
-impl Yfelo {
-    pub fn new(left: String, right: String, interpreter: Rc<dyn Interpreter>) -> Self {
+impl<C, V, E> Yfelo<C, V, E> {
+    pub fn new(left: String, right: String, interpreter: Rc<dyn Interpreter<Context = C, Value = V, Error = E>>) -> Self {
         let mut rules = interpreter.rules().clone();
         rules.push(Rule {
             name: "EXIT".to_string(),
@@ -78,7 +74,7 @@ impl Yfelo {
         }
     }
 
-    pub fn tokenize<'i>(&'i self, mut input: &'i str) -> Result<Vec<Token<'i>>, ParseError> {
+    pub fn tokenize<'i>(&'i self, mut input: &'i str) -> Result<Vec<Token<'i>>, SyntaxError> {
         let mut nodes = vec![];
         let mut offset = 0;
         while let Some(pos) = input.find(&self.left) {
@@ -99,7 +95,7 @@ impl Yfelo {
                     println!("Error: {:?}", err.variant);
                     println!("Error: {:?}", err.location);
                     println!("Error: {:?}", err.line_col);
-                    return Err(ParseError {
+                    return Err(SyntaxError {
                         message: format!("unterminated tag syntax"),
                         range: match err.location {
                             // TODO
@@ -131,7 +127,7 @@ impl Yfelo {
         }
     }
 
-    pub fn parse<'i>(&'i self, input: &'i str) -> Result<Vec<Node<'i>>, ParseError> {
+    pub fn parse<'i>(&'i self, input: &'i str) -> Result<Vec<Node<'i>>, SyntaxError> {
         let tokens = self.tokenize(input)?;
         let mut stack = vec![(Element {
             name: "",
@@ -148,7 +144,7 @@ impl Yfelo {
                     if let Some(c @ ('#' | '/' | ':' | '@')) = content.chars().nth(0) {
                         let (name, header) = Self::split(&content[1..]);
                         if name.len() == 0 {
-                            return Err(ParseError {
+                            return Err(SyntaxError {
                                 message: format!("empty tag name"),
                                 range,
                             });
@@ -165,7 +161,7 @@ impl Yfelo {
                             '/' => {
                                 let element = stack.pop().unwrap().0;
                                 if element.name != name {
-                                    return Err(ParseError {
+                                    return Err(SyntaxError {
                                         message: format!("unmatched tag name"),
                                         range,
                                     });
@@ -195,11 +191,13 @@ impl Yfelo {
             }
         }
         if stack.len() > 1 {
-            return Err(ParseError {
+            return Err(SyntaxError {
                 message: format!("unmatched tag name"),
                 range: stack.last().unwrap().1,
             });
         }
         Ok(stack.pop().unwrap().0.children)
     }
+
+    pub fn transform<'i>(&'i self, input: &'i str, ctx: &'i Value) -> () {}
 }

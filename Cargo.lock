@@ -208,6 +208,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "pest_derive"
+version = "2.7.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "26293c9193fbca7b1a3bf9b79dc1e388e927e6cacaa78b4a3ab705a1d3d41459"
+dependencies = [
+ "pest",
+ "pest_generator",
+]
+
+[[package]]
+name = "pest_generator"
+version = "2.7.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3ec22af7d3fb470a85dd2ca96b7c577a1eb4ef6f1683a9fe9a8c16e136c04687"
+dependencies = [
+ "pest",
+ "pest_meta",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "pest_meta"
 version = "2.7.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -470,6 +493,7 @@ dependencies = [
  "clap",
  "once_cell",
  "pest",
+ "pest_derive",
  "pest_meta",
  "pest_vm",
  "regex",

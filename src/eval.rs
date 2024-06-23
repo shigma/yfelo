@@ -1,25 +1,39 @@
 use std::collections::HashMap;
 
-use pest_meta::ast::{Expr, Rule, RuleType};
+use crate::error::{Error, SyntaxError};
+use pest::Parser;
+use pest_meta::ast;
+use serde_json::Value;
 
-use crate::Interpreter;
+#[derive(Parser)]
+#[grammar = "default.pest"]
+struct DefaultParser;
+
+pub trait Interpreter {
+    type Context;
+    type Value;
+    type Error;
+
+    fn rules(&self) -> Vec<ast::Rule>;
+    fn eval(&self, input: &str, ctx: &Self::Context) -> Result<Self::Value, Error<Self::Error>>;
+}
 
 macro_rules! expr {
-    // expr!["name"] => Expr::Str("name".to_string())
+    // expr!["name"] => ast::Expr::Str("name".to_string())
     ($a:literal $(,)?) => {
-        Expr::Ident($a.to_string())
+        ast::Expr::Ident($a.to_string())
     };
     // expr![value] => value
     ($a:expr $(,)?) => {
         $a
     };
-    // expr![x, y] => Expr::Seq(Box::new(x), Box::new(y))
+    // expr![x, y] => ast::Expr::Seq(Box::new(x), Box::new(y))
     ($a:expr, $($b:expr),+ $(,)?) => {
-        Expr::Seq(Box::new(expr!($a)), Box::new(expr!($($b),+)))
+        ast::Expr::Seq(Box::new(expr!($a)), Box::new(expr!($($b),+)))
     };
 }
 
-fn join(exprs: Vec<Expr>, f: fn(Box<Expr>, Box<Expr>) -> Expr) -> Expr {
+fn join(exprs: Vec<ast::Expr>, f: fn(Box<ast::Expr>, Box<ast::Expr>) -> ast::Expr) -> ast::Expr {
     let mut iter = exprs.into_iter().rev();
     let first = iter.next().unwrap();
     iter.fold(first, |acc, expr| f(Box::new(expr), Box::new(acc)))
@@ -39,7 +53,11 @@ macro_rules! syntax {
 }
 
 impl Interpreter for DefaultInterpreter {
-    fn rules(&self) -> Vec<Rule> {
+    type Context = Value;
+    type Value = Value;
+    type Error = ();
+
+    fn rules(&self) -> Vec<ast::Rule> {
         let mut grammar = HashMap::new();
         grammar.insert("main".to_string(), vec![
             syntax!("(", "main", ")"),
@@ -50,16 +68,16 @@ impl Interpreter for DefaultInterpreter {
         grammar.insert("string".to_string(), vec![
             Syntax::Escape("\\".into()),
         ]);
-        let mut rules = vec![Rule {
+        let mut rules = vec![ast::Rule {
             name: "ENTRY".to_string(),
-            ty: RuleType::Normal,
+            ty: ast::RuleType::Normal,
             expr: expr![
                 "SOI",
-                Expr::Rep(Box::new(expr![
-                    Expr::NegPred(Box::new(expr!("EXIT"))),
+                ast::Expr::Rep(Box::new(expr![
+                    ast::Expr::NegPred(Box::new(expr!("EXIT"))),
                     "main",
                 ])),
-                Expr::PosPred(Box::new(expr!("EXIT"))),
+                ast::Expr::PosPred(Box::new(expr!("EXIT"))),
             ],
         }];
         for (name, syntax) in grammar {
@@ -68,45 +86,56 @@ impl Interpreter for DefaultInterpreter {
             for (index, syn) in syntax.into_iter().enumerate() {
                 match syn {
                     Syntax::Bracket(left, right, inner) => {
-                        neg.push(Expr::Str(left.clone()));
-                        neg.push(Expr::Str(right.clone()));
-                        rules.push(Rule {
+                        neg.push(ast::Expr::Str(left.clone()));
+                        neg.push(ast::Expr::Str(right.clone()));
+                        rules.push(ast::Rule {
                             name: format!("{}_{}", name, index),
-                            ty: RuleType::Normal,
+                            ty: ast::RuleType::Normal,
                             expr: join(vec![
-                                Expr::Str(left),
-                                Expr::Rep(Box::from(Expr::Ident(inner.clone()))),
-                                Expr::Str(right),
-                            ], Expr::Seq),
+                                ast::Expr::Str(left),
+                                ast::Expr::Rep(Box::from(ast::Expr::Ident(inner.clone()))),
+                                ast::Expr::Str(right),
+                            ], ast::Expr::Seq),
                         });
                     },
                     Syntax::Escape(left) => {
-                        neg.push(Expr::Str(left.clone()));
-                        rules.push(Rule {
+                        neg.push(ast::Expr::Str(left.clone()));
+                        rules.push(ast::Rule {
                             name: format!("{}_{}", name, index),
-                            ty: RuleType::Normal,
+                            ty: ast::RuleType::Normal,
                             expr: join(vec![
-                                Expr::Str(left),
-                                Expr::Ident("ANY".to_string()),
-                            ], Expr::Seq),
+                                ast::Expr::Str(left),
+                                ast::Expr::Ident("ANY".to_string()),
+                            ], ast::Expr::Seq),
                         });
                     },
                 }
             }
-            rules.push(Rule {
+            rules.push(ast::Rule {
                 name: name.clone(),
-                ty: RuleType::Normal,
-                expr: Expr::Choice(
+                ty: ast::RuleType::Normal,
+                expr: ast::Expr::Choice(
                     Box::new(expr![
-                        Expr::NegPred(Box::new(join(neg, Expr::Choice))),
+                        ast::Expr::NegPred(Box::new(join(neg, ast::Expr::Choice))),
                         "ANY",
                     ]),
                     Box::new(join((0..count).map(|index| {
-                        Expr::Ident(format!("{}_{}", name, index))
-                    }).collect(), Expr::Choice)),
+                        ast::Expr::Ident(format!("{}_{}", name, index))
+                    }).collect(), ast::Expr::Choice)),
                 ),
             });
         }
         rules
+    }
+
+    fn eval(&self, input: &str, _: &Value) -> Result<Value, Error<Self::Error>> {
+        let _ = match DefaultParser::parse(Rule::expr, input) {
+            Ok(v) => v,
+            Err(e) => return Err(Error::Syntax(SyntaxError {
+                message: e.to_string(),
+                range: (0, 0), // TODO
+            })),
+        };
+        Ok(Value::Null)
     }
 }

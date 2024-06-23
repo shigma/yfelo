@@ -1,0 +1,30 @@
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
+COMMENT = _{ inline_comment | block_comment }
+
+inline_comment = { "//" ~ (!"\n" ~ ANY)* ~ "\n" }
+block_comment = { "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
+
+letter = _{ 'a'..'z' | 'A'..'Z' }
+digit = _{ '0'..'9' }
+ident = { (letter | "_") ~ (letter | digit | "_")* }
+number = { digit+ ~ ("." ~ digit+)? }
+string = { "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
+
+atom = { number | string | ident | "(" ~ expr ~ ")" | "[" ~ (expr ~ ",")* ~ expr ~ "]" }
+
+prefix = { "!" | "~" | "-" | "+" }
+suffix = { "(" ~ expr ~ ")" | "[" ~ expr ~ "]" | "." ~ ident }
+
+expr_unary = _{ prefix* ~ atom ~ suffix* }
+expr_pow = _{ expr_unary ~ ("**" ~ expr_unary)* }
+expr_mul = _{ expr_pow ~ (("*" | "/" | "%") ~ expr_pow)* }
+expr_add = _{ expr_mul ~ (("+" | "-") ~ expr_mul)* }
+expr_shift = _{ expr_add ~ (("<<" | ">>>" | ">>") ~ expr_add)* }
+expr_comp = _{ expr_shift ~ (("<=" | ">=" | "<" | ">") ~ expr_shift)* }
+expr_eq = _{ expr_comp ~ (("==" | "!=") ~ expr_comp)* }
+expr_bitand = _{ expr_eq ~ ("&" ~ expr_eq)* }
+expr_bitxor = _{ expr_bitand ~ ("^" ~ expr_bitand)* }
+expr_bitor = _{ expr_bitxor ~ ("|" ~ expr_bitxor)* }
+expr_logand = _{ expr_bitor ~ ("&&" ~ expr_bitor)* }
+expr_logor = _{ expr_logand ~ ("||" ~ expr_logand)* }
+expr = _{ expr_logor }
