@@ -10,7 +10,7 @@ const YFELO: Lazy<Yfelo<(), (), Value, Value, <DefaultInterpreter as Interpreter
 #[test]
 pub fn tokenize_1() {
     let y = YFELO;
-    let tokens = y.tokenize("(Hello) {world}!").unwrap();
+    let tokens = y.parse("(Hello) {world}!").unwrap();
     assert_eq!(tokens.len(), 3);
     assert_eq!(tokens[0], Token::Text("(Hello) "));
     assert_eq!(tokens[1], Token::Tag("world", (9, 14)));
@@ -20,7 +20,7 @@ pub fn tokenize_1() {
 #[test]
 pub fn tokenize_2() {
     let y = YFELO;
-    let tokens = y.tokenize("{world}").unwrap();
+    let tokens = y.parse("{world}").unwrap();
     assert_eq!(tokens.len(), 1);
     assert_eq!(tokens[0], Token::Tag("world", (1, 6)));
 }
@@ -28,7 +28,7 @@ pub fn tokenize_2() {
 #[test]
 pub fn tokenize_3() {
     let y = YFELO;
-    let tokens = y.tokenize("{w(o[r])ld}").unwrap();
+    let tokens = y.parse("{w(o[r])ld}").unwrap();
     assert_eq!(tokens.len(), 1);
     assert_eq!(tokens[0], Token::Tag("w(o[r])ld", (1, 10)));
 }
@@ -36,7 +36,7 @@ pub fn tokenize_3() {
 #[test]
 pub fn tokenize_4() {
     let y = YFELO;
-    let tokens = y.tokenize("{w{o}r{l}d}").unwrap();
+    let tokens = y.parse("{w{o}r{l}d}").unwrap();
     assert_eq!(tokens.len(), 1);
     assert_eq!(tokens[0], Token::Tag("w{o}r{l}d", (1, 10)));
 }
@@ -44,7 +44,7 @@ pub fn tokenize_4() {
 #[test]
 pub fn unterminated_tag_1() {
     let y = YFELO;
-    let err = y.tokenize("{Hello} {world").unwrap_err();
+    let err = y.parse("{Hello} {world").unwrap_err();
     assert_eq!(err.message, "unterminated tag syntax");
     assert_eq!(err.range, (8, 9));
 }
@@ -52,7 +52,7 @@ pub fn unterminated_tag_1() {
 #[test]
 pub fn unterminated_tag_2() {
     let y = YFELO;
-    let err = y.tokenize("{Hel(lo}").unwrap_err();
+    let err = y.parse("{Hel(lo}").unwrap_err();
     assert_eq!(err.message, "unterminated tag syntax");
     assert_eq!(err.range, (7, 8));
 }
@@ -60,7 +60,7 @@ pub fn unterminated_tag_2() {
 #[test]
 pub fn unterminated_tag_3() {
     let y = YFELO;
-    let err = y.tokenize("{Hel)lo}").unwrap_err();
+    let err = y.parse("{Hel)lo}").unwrap_err();
     assert_eq!(err.message, "unterminated tag syntax");
     assert_eq!(err.range, (4, 5));
 }
@@ -68,7 +68,7 @@ pub fn unterminated_tag_3() {
 #[test]
 pub fn unterminated_tag_4() {
     let y = YFELO;
-    let err = y.tokenize("{H(e[l)l]o}").unwrap_err();
+    let err = y.parse("{H(e[l)l]o}").unwrap_err();
     assert_eq!(err.message, "unterminated tag syntax");
     assert_eq!(err.range, (6, 7));
 }

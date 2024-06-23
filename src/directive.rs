@@ -1,31 +1,39 @@
+use std::any::Any;
+
 use crate::error::SyntaxError;
-use crate::interpreter::{Input, Interpreter};
+use crate::parser::Input;
 
-pub trait Directive<E, P>: Sized {
-    fn parse<C, V, R>(&self, lang: &dyn Interpreter<Expr = E, Pattern = P, Context = C, Value = V, Error = R>, input: &mut Input) -> Result<Self, SyntaxError>;
+pub trait Directive {
+    fn parse(&self, input: &mut Input) -> Result<Box<dyn Any>, SyntaxError>;
 }
 
-pub struct If<E> {
-    expr: E,
+pub struct IfMeta {
+    expr: Box<dyn Any>,
 }
 
-impl<E, P> Directive<E, P> for If<E> {
-    fn parse<C, V, R>(&self, lang: &dyn Interpreter<Expr = E, Pattern = P, Context = C, Value = V, Error = R>, input: &mut Input) -> Result<Self, SyntaxError> {
-        let expr = lang.parse_expr(input)?;
-        Ok(Self { expr })
+pub struct If;
+
+impl Directive for If {
+    fn parse(&self, input: &mut Input) -> Result<Box<dyn Any>, SyntaxError> {
+        let expr = input.expect_expr()?;
+        input.expect_close()?;
+        Ok(Box::new(IfMeta { expr }))
     }
 }
 
-pub struct For<E, P> {
-    item: P,
-    expr: E,
+pub struct ForMeta {
+    item: Box<dyn Any>,
+    expr: Box<dyn Any>,
 }
 
-impl<E, P> Directive<E, P> for For<E, P> {
-    fn parse<C, V, R>(&self, lang: &dyn Interpreter<Expr = E, Pattern = P, Context = C, Value = V, Error = R>, input: &mut Input) -> Result<Self, SyntaxError> {
-        let item = lang.parse_pattern(input)?;
-        input.expect_word("in")?;
-        let expr = lang.parse_expr(input)?;
-        Ok(Self { item, expr })
+pub struct For;
+
+impl Directive for For {
+    fn parse(&self, input: &mut Input) -> Result<Box<dyn Any>, SyntaxError> {
+        let item = input.expect_pattern()?;
+        input.expect_keyword("in")?;
+        let expr = input.expect_expr()?;
+        input.expect_close()?;
+        Ok(Box::new(ForMeta { item, expr }))
     }
 }

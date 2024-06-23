@@ -1,26 +1,29 @@
+use std::any::Any;
 use std::collections::HashMap;
 
-use crate::error::{Error, SyntaxError};
 use pest::Parser;
 use pest_meta::ast;
 use serde_json::Value;
+
+use crate::error::{Error, SyntaxError};
+use crate::parser::Input;
 
 #[derive(Parser)]
 #[grammar = "default.pest"]
 struct DefaultParser;
 
 pub trait Interpreter {
-    type Expr;
-    type Pattern;
-    type Context;
-    type Value;
-    type Error;
+    // type Expr;
+    // type Pattern;
+    // type Context;
+    // type Value;
+    // type Error;
 
-    fn parse_expr(&self, input: &mut Input) -> Result<Self::Expr, SyntaxError>;
-    fn parse_pattern(&self, input: &mut Input) -> Result<Self::Pattern, SyntaxError>;
+    fn parse_expr(&self, input: &mut Input) -> Result<Box<dyn Any>, SyntaxError>;
+    fn parse_pattern(&self, input: &mut Input) -> Result<Box<dyn Any>, SyntaxError>;
     fn rules(&self) -> Vec<ast::Rule>;
-    fn eval(&self, input: &str, ctx: &Self::Context) -> Result<Self::Value, Error<Self::Error>>;
-    fn serialize(&self, value: &Self::Value) -> String;
+    // fn eval(&self, input: &str, ctx: &Self::Context) -> Result<Self::Value, Error<Self::Error>>;
+    // fn serialize(&self, value: &Self::Value) -> String;
 }
 
 macro_rules! expr {
@@ -44,28 +47,6 @@ fn join(exprs: Vec<ast::Expr>, f: fn(Box<ast::Expr>, Box<ast::Expr>) -> ast::Exp
     iter.fold(first, |acc, expr| f(Box::new(expr), Box::new(acc)))
 }
 
-pub struct Input<'i>(pub &'i str, pub usize);
-
-impl<'i> Input<'i> {
-    pub fn shift(&mut self, offset: usize) {
-        let old_len = self.0.len();
-        self.0 = self.0[offset..].trim_start();
-        self.1 += old_len - self.0.len();
-    }
-
-    pub fn expect_word(&mut self, word: &str) -> Result<(), SyntaxError> {
-        if self.0.starts_with(word) && !self.0[word.len()..].starts_with(|c: char| c.is_ascii_alphanumeric()) {
-            self.shift(word.len());
-            Ok(())
-        } else {
-            Err(SyntaxError {
-                message: format!("expected keyword {}", word),
-                range: (self.1, self.1 + 1),
-            })
-        }
-    }
-}
-
 pub struct DefaultInterpreter;
 
 pub enum Syntax {
@@ -80,14 +61,14 @@ macro_rules! syntax {
 }
 
 impl Interpreter for DefaultInterpreter {
-    type Expr = ();
-    type Pattern = ();
-    type Context = Value;
-    type Value = Value;
-    type Error = ();
+    // type Expr = ();
+    // type Pattern = ();
+    // type Context = Value;
+    // type Value = Value;
+    // type Error = ();
 
-    fn parse_expr(&self, input: &mut Input) -> Result<Self::Expr, SyntaxError> {
-        let pairs = match DefaultParser::parse(Rule::expr, input.0) {
+    fn parse_expr(&self, input: &mut Input) -> Result<Box<dyn Any>, SyntaxError> {
+        let pairs = match DefaultParser::parse(Rule::expr, input.source) {
             Ok(v) => v,
             Err(e) => return Err(SyntaxError {
                 message: e.to_string(),
@@ -95,11 +76,11 @@ impl Interpreter for DefaultInterpreter {
             }),
         };
         input.shift(pairs.as_str().len());
-        Ok(())
+        Ok(Box::new(()))
     }
 
-    fn parse_pattern(&self, input: &mut Input) -> Result<Self::Pattern, SyntaxError> {
-        let pairs = match DefaultParser::parse(Rule::ident, input.0) {
+    fn parse_pattern(&self, input: &mut Input) -> Result<Box<dyn Any>, SyntaxError> {
+        let pairs = match DefaultParser::parse(Rule::ident, input.source) {
             Ok(v) => v,
             Err(e) => return Err(SyntaxError {
                 message: e.to_string(),
@@ -107,7 +88,7 @@ impl Interpreter for DefaultInterpreter {
             }),
         };
         input.shift(pairs.as_str().len());
-        Ok(())
+        Ok(Box::new(()))
     }
 
     fn rules(&self) -> Vec<ast::Rule> {
@@ -180,8 +161,10 @@ impl Interpreter for DefaultInterpreter {
         }
         rules
     }
+}
 
-    fn eval(&self, input: &str, _: &Value) -> Result<Value, Error<Self::Error>> {
+impl DefaultInterpreter {
+    fn eval(&self, input: &str, _: &Value) -> Result<Value, Error<()>> {
         let _ = match DefaultParser::parse(Rule::expr, input) {
             Ok(v) => v,
             Err(e) => return Err(Error::Syntax(SyntaxError {
@@ -192,7 +175,7 @@ impl Interpreter for DefaultInterpreter {
         Ok(Value::Null)
     }
 
-    fn serialize(&self, value: &Self::Value) -> String {
+    fn serialize(&self, value: &Value) -> String {
         value.to_string()
     }
 }
