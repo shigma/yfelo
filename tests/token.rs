@@ -1,26 +1,10 @@
-use std::{collections::HashMap, rc::Rc};
+use std::rc::Rc;
 
 use once_cell::sync::Lazy;
-use yfelo::{Interpreter, Node, Syntax, Token, Yfelo};
-
-macro_rules! syntax {
-    ($l:literal, $m:literal, $r:literal) => {
-        Syntax::Bracket($l.into(), $r.into(), $m.into())
-    };
-}
+use yfelo::{DefaultInterpreter, Node, Token, Yfelo};
 
 const YFELO: Lazy<Yfelo> = Lazy::new(|| {
-    let mut grammar = HashMap::new();
-    grammar.insert("main".to_string(), vec![
-        syntax!("(", "main", ")"),
-        syntax!("[", "main", "]"),
-        syntax!("{", "main", "}"),
-        syntax!("\"", "string", "\""),
-    ]);
-    grammar.insert("string".to_string(), vec![
-        Syntax::Escape("\\".into()),
-    ]);
-    let interpreter = Rc::new(Interpreter::new(grammar));
+    let interpreter = Rc::new(DefaultInterpreter);
     Yfelo::new("{".to_string(), "}".to_string(), interpreter)
 });
 
@@ -71,7 +55,7 @@ pub fn unterminated_tag_2() {
     let y = YFELO;
     let err = y.tokenize("{Hel(lo}").unwrap_err();
     assert_eq!(err.message, "unterminated tag syntax");
-    assert_eq!(err.range, (0, 1));
+    assert_eq!(err.range, (7, 8));
 }
 
 #[test]
@@ -79,7 +63,7 @@ pub fn unterminated_tag_3() {
     let y = YFELO;
     let err = y.tokenize("{Hel)lo}").unwrap_err();
     assert_eq!(err.message, "unterminated tag syntax");
-    assert_eq!(err.range, (0, 1));
+    assert_eq!(err.range, (4, 5));
 }
 
 #[test]
@@ -87,7 +71,7 @@ pub fn unterminated_tag_4() {
     let y = YFELO;
     let err = y.tokenize("{H(e[l)l]o}").unwrap_err();
     assert_eq!(err.message, "unterminated tag syntax");
-    assert_eq!(err.range, (0, 1));
+    assert_eq!(err.range, (6, 7));
 }
 
 #[test]

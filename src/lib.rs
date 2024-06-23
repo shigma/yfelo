@@ -1,10 +1,13 @@
-use std::collections::HashMap;
 use std::rc::Rc;
 
 use pest::error::InputLocation;
 use pest_meta::ast::{Expr, Rule, RuleType};
 use pest_meta::optimizer::optimize;
 use pest_vm::Vm;
+
+pub use eval::DefaultInterpreter;
+
+mod eval;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Element<'i> {
@@ -45,99 +48,8 @@ pub struct ParseError {
     pub range: (usize, usize),
 }
 
-pub enum Syntax {
-    Bracket(String, String, String),
-    Escape(String),
-}
-
-macro_rules! expr {
-    // expr!["name"] => Expr::Str("name".to_string())
-    ($a:literal $(,)?) => {
-        Expr::Ident($a.to_string())
-    };
-    // expr![value] => value
-    ($a:expr $(,)?) => {
-        $a
-    };
-    // expr![x, y] => Expr::Seq(Box::new(x), Box::new(y))
-    ($a:expr, $($b:expr),+ $(,)?) => {
-        Expr::Seq(Box::new(expr!($a)), Box::new(expr!($($b),+)))
-    };
-}
-
-fn join(exprs: Vec<Expr>, f: fn(Box<Expr>, Box<Expr>) -> Expr) -> Expr {
-    let mut iter = exprs.into_iter().rev();
-    let first = iter.next().unwrap();
-    iter.fold(first, |acc, expr| f(Box::new(expr), Box::new(acc)))
-}
-
-pub struct Interpreter {
-    rules: Vec<Rule>,
-}
-
-impl Interpreter {
-    pub fn new(grammar: HashMap<String, Vec<Syntax>>) -> Self {
-        let mut rules = vec![Rule {
-            name: "ENTRY".to_string(),
-            ty: RuleType::Normal,
-            expr: expr![
-                "SOI",
-                Expr::Rep(Box::new(expr![
-                    Expr::NegPred(Box::new(expr!("EXIT"))),
-                    "main",
-                ])),
-                Expr::PosPred(Box::new(expr!("EXIT"))),
-            ],
-        }];
-        for (name, syntax) in grammar {
-            let mut neg = vec![];
-            let count = syntax.len();
-            for (index, syn) in syntax.into_iter().enumerate() {
-                match syn {
-                    Syntax::Bracket(left, right, inner) => {
-                        neg.push(Expr::Str(left.clone()));
-                        neg.push(Expr::Str(right.clone()));
-                        rules.push(Rule {
-                            name: format!("{}_{}", name, index),
-                            ty: RuleType::Normal,
-                            expr: join(vec![
-                                Expr::Str(left),
-                                Expr::Ident(inner.clone()),
-                                Expr::Str(right),
-                            ], Expr::Seq),
-                        });
-                    },
-                    Syntax::Escape(left) => {
-                        neg.push(Expr::Str(left.clone()));
-                        rules.push(Rule {
-                            name: format!("{}_{}", name, index),
-                            ty: RuleType::Normal,
-                            expr: join(vec![
-                                Expr::Str(left),
-                                Expr::Ident("ANY".to_string()),
-                            ], Expr::Seq),
-                        });
-                    },
-                }
-            }
-            rules.push(Rule {
-                name: name.clone(),
-                ty: RuleType::Normal,
-                expr: Expr::Choice(
-                    Box::new(expr![
-                        Expr::NegPred(Box::new(join(neg, Expr::Choice))),
-                        "ANY",
-                    ]),
-                    Box::new(join((0..count).map(|index| {
-                        Expr::Ident(format!("{}_{}", name, index))
-                    }).collect(), Expr::Choice)),
-                ),
-            });
-        }
-        Self {
-            rules,
-        }
-    }
+pub trait Interpreter {
+    fn rules(&self) -> Vec<Rule>;
 }
 
 pub struct Yfelo {
@@ -146,12 +58,12 @@ pub struct Yfelo {
     right: String,
     parser: Vm,
     #[allow(dead_code)]
-    interpreter: Rc<Interpreter>,
+    interpreter: Rc<dyn Interpreter>,
 }
 
 impl Yfelo {
-    pub fn new(left: String, right: String, interpreter: Rc<Interpreter>) -> Self {
-        let mut rules = interpreter.rules.clone();
+    pub fn new(left: String, right: String, interpreter: Rc<dyn Interpreter>) -> Self {
+        let mut rules = interpreter.rules().clone();
         rules.push(Rule {
             name: "EXIT".to_string(),
             ty: RuleType::Silent,
@@ -184,10 +96,23 @@ impl Yfelo {
                     offset += end + 1;
                 },
                 Err(err) => {
-                    println!("Error: {}", err);
+                    println!("Error: {:?}", err.variant);
+                    println!("Error: {:?}", err.location);
+                    println!("Error: {:?}", err.line_col);
                     return Err(ParseError {
                         message: format!("unterminated tag syntax"),
-                        range: (offset - 1, offset),
+                        range: match err.location {
+                            // TODO
+                            InputLocation::Pos(pos) => {
+                                if pos == input.len() {
+                                    (offset - 1, offset)
+                                } else {
+                                    // unmatched closing bracket
+                                    (offset + pos, offset + pos + 1)
+                                }
+                            },
+                            _ => (offset - 1, offset),
+                        },
                     });
                 },
             }
