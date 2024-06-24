@@ -25,9 +25,10 @@ pub trait Value: Any {
 
 pub mod default {
     use std::any::Any;
+    use std::collections::BTreeMap;
+    use std::{fmt, ops};
 
     use pest::Parser;
-    use serde_json::{json, Number, Value as JsonValue};
 
     use crate::error::SyntaxError;
     use super::Value as _;
@@ -72,7 +73,7 @@ pub mod default {
         Pow,
         Mul, Div, Mod,
         Add, Sub,
-        Shl, Shr, UShr,
+        Shl, Shr,
         Lt, Le, Gt, Ge,
         Eq, Ne,
         BitAnd,
@@ -84,7 +85,7 @@ pub mod default {
 
     #[derive(Debug)]
     pub enum Expr {
-        Number(Number),
+        Number(f64),
         String(String),
         Ident(String),
         Array(Vec<Expr>),
@@ -103,61 +104,72 @@ pub mod default {
     impl super::Pattern for Pattern {}
 
     pub struct Context {
-        inner: JsonValue,
+        inner: Value,
     }
 
     impl Context {
         fn _eval(&self, expr: &Expr) -> Result<Value, Box<dyn Any>> {
-            let inner = match expr {
-                Expr::Number(n) => JsonValue::Number(n.clone()),
-                Expr::String(s) => JsonValue::String(s.clone()),
+            Ok(match expr {
+                Expr::Number(n) => Value::Number(n.clone()),
+                Expr::String(s) => Value::String(s.clone()),
                 Expr::Ident(ident) => {
                     if ident == "true" {
-                        JsonValue::Bool(true)
+                        Value::Bool(true)
                     } else if ident == "false" {
-                        JsonValue::Bool(false)
+                        Value::Bool(false)
                     } else if ident == "null" {
-                        JsonValue::Null
+                        Value::Null
                     } else {
-                        self.inner.get(ident).unwrap_or(&JsonValue::Null).clone()
+                        self.inner[ident].clone()
                     }
                 },
-                // Expr::Array(vec) => {
-                //     let vec = vec.iter().map(|expr| {
-                //         self._eval(expr).unwrap()
-                //     }).collect();
-                //     JsonValue::Array(vec)
-                // },
+                Expr::Array(vec) => {
+                    Value::Array(vec.iter().map(|expr| {
+                        self._eval(expr).unwrap()
+                    }).collect())
+                },
                 // Expr::Apply(func, args) => {
                 //     let func = self._eval(func).unwrap();
                 //     let args = args.iter().map(|expr| {
                 //         self._eval(expr).unwrap()
                 //     }).collect();
-                //     JsonValue::Null
+                //     Value::Null
                 // },
                 Expr::Unary(op, expr) => {
                     let value = self._eval(expr).unwrap();
                     match op {
-                        UnaryOp::Not => JsonValue::Bool(!value.to_bool()?),
-                        UnaryOp::Pos => JsonValue::Number(value.to_number()?),
-                        // UnaryOp::Neg => JsonValue::Number(match value.to_number()? {
-                        //     Number::PosInt(n) => Number::NegInt(-n),
-                        //     Number::NegInt(n) => Number::PosInt(-n),
-                        //     Number::Float(n) => Number::Float(-n),
-                        // }),
-                        _ => unimplemented!(),
+                        UnaryOp::Not => Value::Bool(!value.to_bool()?),
+                        UnaryOp::Pos => Value::Number(value.to_number()?),
+                        UnaryOp::Neg => Value::Number(-value.to_number()?),
                     }
                 },
                 Expr::Binary(lhs, op, rhs) => {
                     let lhs = self._eval(lhs).unwrap();
                     let rhs = self._eval(rhs).unwrap();
                     match op {
-                        _ => unimplemented!(),
+                        BinaryOp::Pow => Value::Number(lhs.to_number()?.powf(rhs.to_number()?)),
+                        BinaryOp::Mul => Value::Number(lhs.to_number()? * rhs.to_number()?),
+                        BinaryOp::Div => Value::Number(lhs.to_number()? / rhs.to_number()?),
+                        BinaryOp::Mod => Value::Number(lhs.to_number()? % rhs.to_number()?),
+                        BinaryOp::Add => Value::Number(lhs.to_number()? + rhs.to_number()?),
+                        BinaryOp::Sub => Value::Number(lhs.to_number()? - rhs.to_number()?),
+                        BinaryOp::Shl => Value::Number(((lhs.to_number()? as i64) << (rhs.to_number()? as i64)) as f64),
+                        BinaryOp::Shr => Value::Number(((lhs.to_number()? as i64) >> (rhs.to_number()? as i64)) as f64),
+                        BinaryOp::Lt => Value::Bool(lhs.to_number()? < rhs.to_number()?),
+                        BinaryOp::Le => Value::Bool(lhs.to_number()? <= rhs.to_number()?),
+                        BinaryOp::Gt => Value::Bool(lhs.to_number()? > rhs.to_number()?),
+                        BinaryOp::Ge => Value::Bool(lhs.to_number()? >= rhs.to_number()?),
+                        BinaryOp::Eq => Value::Bool(lhs == rhs),
+                        BinaryOp::Ne => Value::Bool(lhs != rhs),
+                        BinaryOp::BitAnd => Value::Number((lhs.to_number()? as i64 & rhs.to_number()? as i64) as f64),
+                        BinaryOp::BitXor => Value::Number((lhs.to_number()? as i64 ^ rhs.to_number()? as i64) as f64),
+                        BinaryOp::BitOr => Value::Number((lhs.to_number()? as i64 | rhs.to_number()? as i64) as f64),
+                        BinaryOp::And => Value::Bool(lhs.to_bool()? && rhs.to_bool()?),
+                        BinaryOp::Or => Value::Bool(lhs.to_bool()? || rhs.to_bool()?),
                     }
                 },
                 _ => unimplemented!(),
-            };
-            Ok(Value{ inner })
+            })
         }
     }
 
@@ -176,56 +188,130 @@ pub mod default {
         fn bind(&mut self, pattern: &dyn super::Pattern, value: Box<dyn super::Value>) -> Result<(), /* Self::Error */ Box<dyn Any>> {
             match (pattern as &dyn Any).downcast_ref::<Pattern>().unwrap() {
                 Pattern::Ident(ident) => {
-                    self.inner[ident] = (value as Box<dyn Any>).downcast::<Value>().unwrap().inner;
+                    self.inner[ident] = *(value as Box<dyn Any>).downcast::<Value>().unwrap();
                     Ok(())
                 },
             }
         }
     }
-
-    pub struct Value {
-        inner: JsonValue,
+    
+    #[derive(Debug, Clone)]
+    pub enum Value {
+        Null,
+        Bool(bool),
+        Number(f64),
+        String(String),
+        Array(Vec<Value>),
+        Object(BTreeMap<String, Value>),
     }
 
     impl Value {
-        fn to_number(&self) -> Result<Number, Box<dyn Any>> {
-            match &self.inner {
-                JsonValue::Number(n) => Ok(n.clone()),
+        fn to_number(&self) -> Result<f64, Box<dyn Any>> {
+            match &self {
+                Value::Number(n) => Ok(*n),
+                Value::Bool(b) => Ok(if *b { 1. } else { 0. }),
                 _ => Err(Box::new(())),
+            }
+        }
+    }
+
+    impl PartialEq for Value {
+        fn eq(&self, other: &Self) -> bool {
+            match (self, other) {
+                (Value::Null, Value::Null) => true,
+                (Value::Bool(a), Value::Bool(b)) => a == b,
+                (Value::Number(a), Value::Number(b)) => a == b,
+                (Value::String(a), Value::String(b)) => a == b,
+                _ => false,
+            }
+        }
+    }
+
+    impl ops::Index<&str> for Value {
+        type Output = Value;
+
+        fn index(&self, index: &str) -> &Self::Output {
+            match self {
+                Value::Object(map) => map
+                    .get(index)
+                    .unwrap_or(&Value::Null),
+                _ => panic!("cannot index into {}", self),
+            }
+        }
+    }
+
+    impl ops::IndexMut<&str> for Value {
+        fn index_mut(&mut self, index: &str) -> &mut Self::Output {
+            match self {
+                Value::Object(map) => map
+                    .entry(index.to_string())
+                    .or_insert(Value::Null),
+                _ => panic!("cannot index into {}", self),
+            }
+        }
+    }
+
+    impl fmt::Display for Value {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            match &self {
+                Value::Null => write!(f, "null"),
+                Value::Bool(b) => write!(f, "{}", b),
+                Value::Number(n) => write!(f, "{}", n),
+                Value::String(s) => write!(f, "{}", s),
+                Value::Array(vec) => {
+                    write!(f, "[")?;
+                    for (i, value) in vec.iter().enumerate() {
+                        if i > 0 {
+                            write!(f, ", ")?;
+                        }
+                        write!(f, "{}", value)?;
+                    }
+                    write!(f, "]")
+                },
+                Value::Object(map) => {
+                    write!(f, "{{")?;
+                    for (i, (k, v)) in map.iter().enumerate() {
+                        if i > 0 {
+                            write!(f, ", ")?;
+                        }
+                        write!(f, "{}: {}", k, v)?;
+                    }
+                    write!(f, "}}")
+                },
             }
         }
     }
 
     impl super::Value for Value {
         fn to_string(&self) -> Result<String, Box<dyn Any>> {
-            match &self.inner {
-                JsonValue::Null => Ok("".to_string()),
+            match &self {
+                Value::Null => Ok("".to_string()),
                 // TODO partial object
-                _ => Ok(self.inner.to_string()),
+                _ => Ok(format!("{}", self)),
             }
         }
 
         fn to_bool(&self) -> Result<bool, Box<dyn Any>> {
-            match &self.inner {
-                JsonValue::Null => Ok(false),
-                JsonValue::Bool(b) => Ok(*b),
-                JsonValue::Number(n) => Ok(n.as_i64().unwrap() != 0),
-                JsonValue::String(s) => Ok(!s.is_empty()),
-                JsonValue::Array(_) => Ok(true),
-                JsonValue::Object(_) => Ok(true),
+            match &self {
+                Value::Null => Ok(false),
+                Value::Bool(b) => Ok(*b),
+                Value::Number(n) => Ok(*n != 0.),
+                Value::String(s) => Ok(!s.is_empty()),
+                Value::Array(_) => Ok(true),
+                Value::Object(_) => Ok(true),
             }
         }
 
         fn to_entries(&self) -> Result<Vec<(Box<dyn super::Value>, Box<dyn super::Value>)>, /* Self::Error */ Box<dyn Any>> {
-            match &self.inner {
-                JsonValue::Array(vec) => Ok(vec.iter().enumerate().map(|(k, v)| {
-                    let value = Box::new(Value { inner: v.clone() }) as Box<dyn super::Value>;
-                    let key = Box::new(Value { inner: json!(k) }) as Box<dyn super::Value>;
+            match &self {
+                Value::Array(vec) => Ok(vec.iter().enumerate().map(|(k, v)| {
+                    let value = Box::new(v.clone()) as Box<dyn super::Value>;
+                    let key = Box::new(Value::Number(k as f64)) as Box<dyn super::Value>;
                     (value, key)
                 }).collect()),
-                JsonValue::Object(map) => Ok(map.iter().map(|(k, v)| {
-                    let value = Box::new(Value { inner: v.clone() }) as Box<dyn super::Value>;
-                    let key = Box::new(Value { inner: json!(k) }) as Box<dyn super::Value>;
+                Value::Object(map) => Ok(map.iter().map(|(k, v)| {
+                    let value = Box::new(v.clone()) as Box<dyn super::Value>;
+                    let key = Box::new(Value::String(k.clone())) as Box<dyn super::Value>;
                     (value, key)
                 }).collect()),
                 _ => Err(Box::new(())),
