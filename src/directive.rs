@@ -26,7 +26,7 @@ impl Directive for If {
 
     fn render<'i>(&self, writer: &mut Writer<'i>, element: &'i Element, ctx: &dyn Context) -> Result<(), Box<dyn Any>> {
         let meta = element.meta.downcast_ref::<IfMeta>().unwrap();
-        let bool = ctx.eval(meta.expr.as_ref())?.to_bool()?;
+        let bool = ctx.eval(meta.expr.as_ref())?.as_bool()?;
         if bool {
             let nodes = element.children.as_ref().unwrap();
             return writer.render_layer(nodes, ctx);
@@ -53,7 +53,7 @@ impl Directive for For {
 
     fn render<'i>(&self, writer: &mut Writer<'i>, element: &'i Element, ctx: &dyn Context) -> Result<(), Box<dyn Any>> {
         let meta = element.meta.downcast_ref::<ForMeta>().unwrap();
-        let entries = ctx.eval(meta.expr.as_ref())?.to_entries()?;
+        let entries = ctx.eval(meta.expr.as_ref())?.as_entries()?;
         for entry in entries {
             let mut inner = ctx.fork();
             inner.bind(meta.pat.as_ref(), entry.0)?;

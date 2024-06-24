@@ -10,21 +10,36 @@ ident = { (letter | "_") ~ (letter | digit | "_")* }
 number = { digit+ ~ ("." ~ digit+)? }
 string = { "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
 
-atom = { number | string | ident | "(" ~ expr ~ ")" | "[" ~ (expr ~ ",")* ~ expr? ~ "]" }
+pattern = { ident }
+expr_list = _{ (expr ~ ",")* ~ expr? }
 
 prefix = { "!" | "-" | "+" }
-suffix = { "(" ~ (expr ~ ",")* ~ expr? ~ ")" | "[" ~ expr ~ "]" | "." ~ ident }
+suffix = { "(" ~ expr_list ~ ")" | "[" ~ expr ~ "]" | "." ~ ident }
+atom = { number | string | ident | array | "(" ~ expr ~ ")" }
+array = { "[" ~ expr_list ~ "]" }
 
-expr_unary = _{ prefix* ~ atom ~ suffix* }
-expr_pow = _{ expr_unary ~ ("**" ~ expr_unary)* }
-expr_mul = _{ expr_pow ~ (("*" | "/" | "%") ~ expr_pow)* }
-expr_add = _{ expr_mul ~ (("+" | "-") ~ expr_mul)* }
-expr_shift = _{ expr_add ~ (("<<" | ">>>" | ">>") ~ expr_add)* }
-expr_comp = _{ expr_shift ~ (("<=" | ">=" | "<" | ">") ~ expr_shift)* }
-expr_eq = _{ expr_comp ~ (("==" | "!=") ~ expr_comp)* }
-expr_bitand = _{ expr_eq ~ ("&" ~ expr_eq)* }
-expr_bitxor = _{ expr_bitand ~ ("^" ~ expr_bitand)* }
-expr_bitor = _{ expr_bitxor ~ ("|" ~ expr_bitxor)* }
-expr_and = _{ expr_bitor ~ ("&&" ~ expr_bitor)* }
-expr_or = _{ expr_and ~ ("||" ~ expr_and)* }
-expr = _{ expr_or }
+pow = { "**" }
+mul = { "*" | "/" | "%" }
+add = { "+" | "-" }
+shift = { "<<" | ">>" }
+comp = { "<=" | ">=" | "<" | ">" }
+eq = { "==" | "!=" }
+bitand = { "&" }
+bitxor = { "^" }
+bitor = { "|" }
+and = { "&&" }
+or = { "||" }
+
+expr_unary = { prefix* ~ atom ~ suffix* }
+expr_pow = { expr_unary ~ (pow ~ expr_unary)* }
+expr_mul = { expr_pow ~ (mul ~ expr_pow)* }
+expr_add = { expr_mul ~ (add ~ expr_mul)* }
+expr_shift = { expr_add ~ (shift ~ expr_add)* }
+expr_comp = { expr_shift ~ (comp ~ expr_shift)* }
+expr_eq = { expr_comp ~ (eq ~ expr_comp)* }
+expr_bitand = { expr_eq ~ (bitand ~ expr_eq)* }
+expr_bitxor = { expr_bitand ~ (bitxor ~ expr_bitand)* }
+expr_bitor = { expr_bitxor ~ (bitor ~ expr_bitxor)* }
+expr_and = { expr_bitor ~ (and ~ expr_bitor)* }
+expr_or = { expr_and ~ (or ~ expr_and)* }
+expr = { expr_or }
