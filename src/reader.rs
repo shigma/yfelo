@@ -1,9 +1,8 @@
-use std::any::Any;
 use std::collections::HashMap;
 
 use crate::directive::Directive;
 use crate::error::SyntaxError;
-use crate::interpreter::Interpreter;
+use crate::interpreter::{Expr, Interpreter, Pattern};
 use crate::{Element, MetaSyntax, Node};
 
 pub struct Reader<'i>{
@@ -50,14 +49,14 @@ impl<'i> Reader<'i> {
         self.offset += old_len - self.input.len();
     }
 
-    pub fn parse_expr(&mut self) -> Result<Box<dyn Any>, SyntaxError> {
+    pub fn parse_expr(&mut self) -> Result<Box<dyn Expr>, SyntaxError> {
         let (expr, offset) = self.lang.parse_expr(self.input)?;
         self.skip(offset);
         self.trim_start();
         Ok(expr)
     }
 
-    pub fn parse_pattern(&mut self) -> Result<Box<dyn Any>, SyntaxError> {
+    pub fn parse_pattern(&mut self) -> Result<Box<dyn Pattern>, SyntaxError> {
         let (expr, offset) = self.lang.parse_pattern(self.input)?;
         self.skip(offset);
         self.trim_start();

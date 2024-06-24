@@ -4,6 +4,7 @@ extern crate pest_derive;
 use std::any::Any;
 use std::collections::HashMap;
 
+use interpreter::Expr;
 use reader::Reader;
 
 pub use crate::directive::Directive;
@@ -26,7 +27,7 @@ pub struct Element<'i> {
 #[derive(Debug)]
 pub enum Node<'i> {
     Text(&'i str),
-    Expr(Box<dyn Any>),
+    Expr(Box<dyn Expr>),
     Element(Element<'i>),
 }
 

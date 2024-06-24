@@ -23,7 +23,7 @@ impl<'i> Writer<'i> {
     pub fn render_node(&mut self, node: &'i Node<'i>, ctx: &dyn Context) -> Result<(), Box<dyn Any>> {
         match node {
             Node::Text(text) => self.output += text,
-            Node::Expr(expr) => self.output += ctx.eval(expr)?.to_string()?.as_str(),
+            Node::Expr(expr) => self.output += ctx.eval(expr.as_ref())?.to_string()?.as_str(),
             Node::Element(element) => {
                 let dir = self.dirs.get(element.name).unwrap();
                 dir.render(self, element, ctx)?;
