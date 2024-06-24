@@ -1,13 +1,14 @@
 use std::any::Any;
 
 use crate::error::SyntaxError;
+use crate::interpreter::Context;
 use crate::reader::Reader;
 use crate::writer::Writer;
 use crate::Element;
 
 pub trait Directive {
     fn parse(&self, reader: &mut Reader) -> Result<Box<dyn Any>, SyntaxError>;
-    fn render<'i>(&self, writer: &mut Writer<'i>, element: &'i Element, ctx: &dyn Any) -> Result<(), Box<dyn Any>>;
+    fn render<'i>(&self, writer: &mut Writer<'i>, element: &'i Element, ctx: &dyn Context) -> Result<(), Box<dyn Any>>;
 }
 
 pub struct IfMeta {
@@ -23,9 +24,9 @@ impl Directive for If {
         Ok(Box::new(IfMeta { expr }))
     }
 
-    fn render<'i>(&self, writer: &mut Writer<'i>, element: &'i Element, ctx: &dyn Any) -> Result<(), Box<dyn Any>> {
+    fn render<'i>(&self, writer: &mut Writer<'i>, element: &'i Element, ctx: &dyn Context) -> Result<(), Box<dyn Any>> {
         let meta = element.meta.downcast_ref::<IfMeta>().unwrap();
-        let bool = writer.lang.eval_as_bool(meta.expr.as_ref(), &Box::new(()))?;
+        let bool = ctx.eval(meta.expr.as_ref())?.to_bool()?;
         if bool {
             let nodes = element.children.as_ref().unwrap();
             return writer.render_layer(nodes, ctx);
@@ -50,7 +51,7 @@ impl Directive for For {
         Ok(Box::new(ForMeta { item, expr }))
     }
 
-    fn render<'i>(&self, writer: &mut Writer<'i>, element: &'i Element, ctx: &dyn Any) -> Result<(), Box<dyn Any>> {
+    fn render<'i>(&self, writer: &mut Writer<'i>, element: &'i Element, ctx: &dyn Context) -> Result<(), Box<dyn Any>> {
         let _meta = element.meta.downcast_ref::<ForMeta>().unwrap();
         Ok(())
     }

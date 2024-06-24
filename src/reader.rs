@@ -7,8 +7,8 @@ use crate::interpreter::Interpreter;
 use crate::{Element, MetaSyntax, Node};
 
 pub struct Reader<'i>{
-    pub source: &'i str,
     pub lang: &'i dyn Interpreter,
+    input: &'i str,
     offset: usize,
     dirs: &'i HashMap<&'i str, Box<dyn Directive>>,
     meta: &'i MetaSyntax,
@@ -18,7 +18,7 @@ pub struct Reader<'i>{
 impl<'i> Reader<'i> {
     pub fn new(source: &'i str, meta: &'i MetaSyntax, lang: &'i dyn Interpreter, dirs: &'i HashMap<&'i str, Box<dyn Directive>>) -> Self {
         Self {
-            source,
+            input: source,
             offset: 0,
             meta,
             lang,
@@ -40,26 +40,32 @@ impl<'i> Reader<'i> {
     }
 
     pub fn skip(&mut self, offset: usize) {
-        self.source = &self.source[offset..];
+        self.input = &self.input[offset..];
         self.offset += offset;
     }
 
     pub fn trim_start(&mut self) {
-        let old_len = self.source.len();
-        self.source = self.source.trim_start();
-        self.offset += old_len - self.source.len();
+        let old_len = self.input.len();
+        self.input = self.input.trim_start();
+        self.offset += old_len - self.input.len();
     }
 
     pub fn parse_expr(&mut self) -> Result<Box<dyn Any>, SyntaxError> {
-        self.lang.parse_expr(self)
+        let (expr, offset) = self.lang.parse_expr(self.input)?;
+        self.skip(offset);
+        self.trim_start();
+        Ok(expr)
     }
 
     pub fn parse_pattern(&mut self) -> Result<Box<dyn Any>, SyntaxError> {
-        self.lang.parse_pattern(self)
+        let (expr, offset) = self.lang.parse_pattern(self.input)?;
+        self.skip(offset);
+        self.trim_start();
+        Ok(expr)
     }
 
     pub fn parse_keyword(&mut self, keyword: &str) -> Result<(), SyntaxError> {
-        if self.source.starts_with(keyword) && !self.source[keyword.len()..].starts_with(|c: char| c.is_ascii_alphanumeric()) {
+        if self.input.starts_with(keyword) && !self.input[keyword.len()..].starts_with(|c: char| c.is_ascii_alphanumeric()) {
             self.skip(keyword.len());
             Ok(())
         } else {
@@ -71,7 +77,7 @@ impl<'i> Reader<'i> {
     }
 
     pub fn tag_close(&mut self) -> Result<(), SyntaxError> {
-        if self.source.starts_with(&self.meta.right) {
+        if self.input.starts_with(&self.meta.right) {
             self.skip(self.meta.right.len());
             Ok(())
         } else {
@@ -83,10 +89,10 @@ impl<'i> Reader<'i> {
     }
 
     fn tag_open(&mut self, c: char) -> Result<(), SyntaxError> {
-        let pos = self.source
+        let pos = self.input
             .find(|c: char| !c.is_ascii_alphanumeric())
-            .unwrap_or(self.source.len());
-        let name = &self.source[..pos];
+            .unwrap_or(self.input.len());
+        let name = &self.input[..pos];
         self.skip(pos);
         let range = (self.offset - name.len(), self.offset);
         let Some(dir) = self.dirs.get(name) else {
@@ -128,12 +134,12 @@ impl<'i> Reader<'i> {
     }
 
     pub fn parse(mut self) -> Result<Vec<Node<'i>>, SyntaxError> {
-        while let Some(pos) = self.source.find(&self.meta.left) {
+        while let Some(pos) = self.input.find(&self.meta.left) {
             if pos > 0 {
-                self.push_node(Node::Text(&self.source[..pos]));
+                self.push_node(Node::Text(&self.input[..pos]));
             }
             self.skip(pos + 1);
-            if let Some(c @ ('#' | '/' | '@')) = self.source.chars().nth(0) {
+            if let Some(c @ ('#' | '/' | '@')) = self.input.chars().nth(0) {
                 self.skip(1);
                 self.tag_open(c)?;
             } else {
@@ -141,8 +147,8 @@ impl<'i> Reader<'i> {
                 self.push_node(Node::Expr(expr));
             }
         }
-        if self.source.len() > 0 {
-            self.push_node(Node::Text(self.source));
+        if self.input.len() > 0 {
+            self.push_node(Node::Text(self.input));
         }
         if self.stack.len() > 1 {
             return Err(SyntaxError {
