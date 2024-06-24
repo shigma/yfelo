@@ -2,22 +2,47 @@ use std::{any::Any, fmt::Debug};
 
 use crate::error::SyntaxError;
 
-pub trait Interpreter {
+pub trait AsAny {
+    fn as_any(&self) -> &dyn Any;
+}
+
+impl<T: Any> AsAny for T {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+pub trait Language {
     fn parse_expr(&self, input: &str) -> Result<(Box<dyn Expr>, usize), SyntaxError>;
     fn parse_pattern(&self, input: &str) -> Result<(Box<dyn Pattern>, usize), SyntaxError>;
 }
 
-pub trait Expr: Debug + Any {}
+pub trait SafeEq {
+    fn safe_eq(&self, other: &dyn Any) -> bool;
+}
 
-pub trait Pattern: Debug + Any {}
+impl<T: PartialEq + 'static> SafeEq for T {
+    fn safe_eq(&self, other: &dyn Any) -> bool {
+        match other.downcast_ref::<Self>() {
+            Some(other) => self == other,
+            None => false,
+        }
+    }
+}
 
-pub trait Context: Any {
+// we cannot use `PartialEq<Self>` because PartialEq is not object-safe
+// we cannot use `PartialEq<dyn Expr>` because it introduces cycle
+pub trait Expr: Debug + AsAny + SafeEq {}
+
+pub trait Pattern: Debug + AsAny {}
+
+pub trait Context: AsAny {
     fn eval(&self, expr: &dyn Expr) -> Result<Box<dyn Value>, /* Self::Error */ Box<dyn Any>>;
     fn fork(&self) -> Box<dyn Context>;
     fn bind(&mut self, pattern: &dyn Pattern, value: Box<dyn Value>) -> Result<(), /* Self::Error */ Box<dyn Any>>;
 }
 
-pub trait Value: Any {
+pub trait Value: AsAny {
     fn to_string(&self) -> Result<String, /* Self::Error */ Box<dyn Any>>;
     fn as_bool(&self) -> Result<bool, /* Self::Error */ Box<dyn Any>>;
     fn as_entries(&self) -> Result<Vec<(Box<dyn Value>, Box<dyn Value>)>, /* Self::Error */ Box<dyn Any>>;
@@ -32,15 +57,15 @@ pub mod default {
     use pest::Parser;
 
     use crate::error::SyntaxError;
-    use super::Value as _;
+    use super::{AsAny, Value as _};
 
     #[derive(Parser)]
     #[grammar = "default.pest"]
     struct DefaultParser;
 
-    pub struct Interpreter;
+    pub struct Language;
 
-    impl super::Interpreter for Interpreter {
+    impl super::Language for Language {
         fn parse_expr(&self, input: &str) -> Result<(Box<dyn super::Expr>, usize), SyntaxError> {
             match DefaultParser::parse(Rule::expr, input) {
                 Ok(pairs) => {
@@ -68,7 +93,7 @@ pub mod default {
         }
     }
 
-    #[derive(Debug, Clone, Copy)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum UnaryOp {
         Not,
         Pos,
@@ -86,7 +111,7 @@ pub mod default {
         }
     }
 
-    #[derive(Debug, Clone, Copy)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum BinaryOp {
         Pow,
         Mul, Div, Mod,
@@ -129,7 +154,7 @@ pub mod default {
         }
     }
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone, PartialEq)]
     pub enum Expr {
         Number(f64),
         String(String),
@@ -198,6 +223,7 @@ pub mod default {
 
         fn from_atom(pair: Pair<Rule>) -> Self {
             assert!(matches!(pair.as_rule(), Rule::atom));
+            let pair = pair.into_inner().next().unwrap();
             match pair.as_rule() {
                 Rule::number => Expr::Number(pair.as_str().parse().unwrap()),
                 Rule::string => Expr::String(pair.as_str().to_string()),
@@ -207,19 +233,19 @@ pub mod default {
                     Expr::Array(Expr::from_list(pairs))
                 },
                 Rule::expr => Expr::from(pair),
-                _ => unreachable!(),
+                _ => unreachable!("unexpected rule: {:?}", pair.as_rule()),
             }
         }
 
         fn from_unary(pair: Pair<Rule>) -> Self {
-            let mut pairs = pair.into_inner();
-            let index = pairs.position(|pair| pair.as_rule() == Rule::atom).unwrap();
-            let mut expr = Expr::from_atom(pairs.nth(index).unwrap());
+            let pairs = pair.into_inner().collect::<Vec<_>>();
+            let index = pairs.iter().position(|pair| pair.as_rule() == Rule::atom).unwrap();
+            let mut expr = Expr::from_atom(pairs[index].clone());
             for i in index + 1..pairs.len() {
-                expr = Expr::from_suffix(expr, pairs.nth(i).unwrap());
+                expr = Expr::from_suffix(expr, pairs[i].clone());
             }
             for i in (0..index).rev() {
-                let op = UnaryOp::from(pairs.nth(i).unwrap());
+                let op = UnaryOp::from(pairs[i].clone());
                 expr = Expr::Unary(op, Box::new(expr));
             }
             expr
@@ -345,8 +371,8 @@ pub mod default {
     }
 
     impl super::Context for Context {
-        fn eval(&self, expr: &dyn super::Expr) -> Result<Box<dyn super::Value>, Box<dyn Any>> {
-            let expr = (expr as &dyn Any).downcast_ref::<Expr>().unwrap();
+        fn eval<'i>(&'i self, expr: &'i dyn super::Expr) -> Result<Box<dyn super::Value>, Box<dyn Any>> {
+            let expr = expr.as_any().downcast_ref::<Expr>().unwrap();
             Ok(Box::new(self._eval(expr)?))
         }
 
@@ -357,9 +383,9 @@ pub mod default {
         }
 
         fn bind(&mut self, pattern: &dyn super::Pattern, value: Box<dyn super::Value>) -> Result<(), /* Self::Error */ Box<dyn Any>> {
-            match (pattern as &dyn Any).downcast_ref::<Pattern>().unwrap() {
+            match pattern.as_any().downcast_ref::<Pattern>().unwrap() {
                 Pattern::Ident(ident) => {
-                    self.inner[ident] = *(value as Box<dyn Any>).downcast::<Value>().unwrap();
+                    self.inner[ident] = (value.as_any()).downcast_ref::<Value>().unwrap().clone();
                     Ok(())
                 },
             }

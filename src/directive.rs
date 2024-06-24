@@ -1,7 +1,7 @@
 use std::any::Any;
 
 use crate::error::SyntaxError;
-use crate::interpreter::{Context, Expr, Pattern};
+use crate::language::{Context, Expr, Pattern};
 use crate::reader::Reader;
 use crate::writer::Writer;
 use crate::Element;

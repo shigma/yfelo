@@ -1,21 +1,20 @@
-#![feature(trait_upcasting)]
-
 #[macro_use]
 extern crate pest_derive;
 
 use std::any::Any;
 use std::collections::HashMap;
 
-use interpreter::Expr;
+use directive::{For, If};
+use language::Expr;
 use reader::Reader;
 
 pub use crate::directive::Directive;
 pub use crate::error::{Error, SyntaxError};
-pub use crate::interpreter::Interpreter;
+pub use crate::language::Language;
 
 pub mod directive;
 pub mod error;
-pub mod interpreter;
+pub mod language;
 pub mod reader;
 pub mod writer;
 
@@ -26,6 +25,13 @@ pub struct Element<'i> {
     pub children: Option<Vec<Node<'i>>>,
 }
 
+impl<'i> PartialEq for Element<'i> {
+    fn eq(&self, other: &Self) -> bool {
+        // FIXME meta
+        self.name == other.name && self.children == other.children
+    }
+}
+
 #[derive(Debug)]
 pub enum Node<'i> {
     Text(&'i str),
@@ -33,20 +39,34 @@ pub enum Node<'i> {
     Element(Element<'i>),
 }
 
-pub struct MetaSyntax {
-    left: String,
-    right: String,
+impl<'i> PartialEq for Node<'i> {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Node::Text(a), Node::Text(b)) => a == b,
+            (Node::Expr(a), Node::Expr(b)) => a.safe_eq(b.as_any()),
+            (Node::Element(a), Node::Element(b)) => a == b,
+            _ => false,
+        }
+    }
+}
+
+pub struct MetaSyntax<'i> {
+    pub left: &'i str,
+    pub right: &'i str,
 }
 
 pub struct Yfelo<'i> {
     dirs: HashMap<&'i str, Box<dyn Directive>>,
-    langs: HashMap<&'i str, Box<dyn Interpreter>>,
+    langs: HashMap<&'i str, Box<dyn Language>>,
 }
 
 impl<'i> Yfelo<'i> {
     pub fn new() -> Self {
+        let mut dirs: HashMap<&str, Box<dyn Directive>> = HashMap::new();
+        dirs.insert("if", Box::new(If));
+        dirs.insert("for", Box::new(For));
         Self {
-            dirs: HashMap::new(),
+            dirs,
             langs: HashMap::new(),
         }
     }
@@ -55,7 +75,7 @@ impl<'i> Yfelo<'i> {
         self.dirs.insert(name, dir);
     }
 
-    pub fn add_interpreter(&mut self, name: &'i str, lang: Box<dyn Interpreter>) {
+    pub fn add_language(&mut self, name: &'i str, lang: Box<dyn Language>) {
         self.langs.insert(name, lang);
     }
 

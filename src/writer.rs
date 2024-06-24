@@ -2,17 +2,17 @@ use std::any::Any;
 use std::collections::HashMap;
 
 use crate::directive::Directive;
-use crate::interpreter::{Context, Interpreter};
+use crate::language::{Context, Language};
 use crate::Node;
 
 pub struct Writer<'i> {
-    pub lang: &'i dyn Interpreter,
+    pub lang: &'i dyn Language,
     dirs: &'i HashMap<&'i str, Box<dyn Directive>>,
     output: String,
 }
 
 impl<'i> Writer<'i> {
-    pub fn new(lang: &'i dyn Interpreter, dirs: &'i HashMap<&'i str, Box<dyn Directive>>) -> Self {
+    pub fn new(lang: &'i dyn Language, dirs: &'i HashMap<&'i str, Box<dyn Directive>>) -> Self {
         Self {
             output: String::new(),
             lang,

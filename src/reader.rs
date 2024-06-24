@@ -2,20 +2,20 @@ use std::collections::HashMap;
 
 use crate::directive::Directive;
 use crate::error::SyntaxError;
-use crate::interpreter::{Expr, Interpreter, Pattern};
+use crate::language::{Expr, Language, Pattern};
 use crate::{Element, MetaSyntax, Node};
 
 pub struct Reader<'i>{
-    pub lang: &'i dyn Interpreter,
+    pub lang: &'i dyn Language,
     input: &'i str,
     offset: usize,
     dirs: &'i HashMap<&'i str, Box<dyn Directive>>,
-    meta: &'i MetaSyntax,
+    meta: &'i MetaSyntax<'i>,
     stack: Vec<(Element<'i>, (usize, usize))>,
 }
 
 impl<'i> Reader<'i> {
-    pub fn new(source: &'i str, meta: &'i MetaSyntax, lang: &'i dyn Interpreter, dirs: &'i HashMap<&'i str, Box<dyn Directive>>) -> Self {
+    pub fn new(source: &'i str, meta: &'i MetaSyntax, lang: &'i dyn Language, dirs: &'i HashMap<&'i str, Box<dyn Directive>>) -> Self {
         Self {
             input: source,
             offset: 0,
@@ -143,6 +143,7 @@ impl<'i> Reader<'i> {
                 self.tag_open(c)?;
             } else {
                 let expr = self.parse_expr()?;
+                self.tag_close()?;
                 self.push_node(Node::Expr(expr));
             }
         }
