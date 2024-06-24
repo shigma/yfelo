@@ -1,19 +1,22 @@
 use std::any::Any;
 use std::collections::HashMap;
 
-use crate::{error::SyntaxError, Directive, Element, Interpreter, MetaSyntax, Node};
+use crate::directive::Directive;
+use crate::error::SyntaxError;
+use crate::interpreter::Interpreter;
+use crate::{Element, MetaSyntax, Node};
 
 pub struct Reader<'i>{
     pub source: &'i str,
+    pub lang: &'i dyn Interpreter,
     offset: usize,
-    lang: &'i dyn Interpreter,
-    dirs: &'i HashMap<&'i str, &'i dyn Directive>,
+    dirs: &'i HashMap<&'i str, Box<dyn Directive>>,
     meta: &'i MetaSyntax,
     stack: Vec<(Element<'i>, (usize, usize))>,
 }
 
 impl<'i> Reader<'i> {
-    pub fn new(source: &'i str, meta: &'i MetaSyntax, lang: &'i dyn Interpreter, dirs: &'i HashMap<&'i str, &'i dyn Directive>) -> Self {
+    pub fn new(source: &'i str, meta: &'i MetaSyntax, lang: &'i dyn Interpreter, dirs: &'i HashMap<&'i str, Box<dyn Directive>>) -> Self {
         Self {
             source,
             offset: 0,

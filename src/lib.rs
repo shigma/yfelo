@@ -14,6 +14,7 @@ pub mod directive;
 pub mod error;
 pub mod interpreter;
 pub mod reader;
+pub mod writer;
 
 #[derive(Debug)]
 pub struct Element<'i> {
@@ -35,22 +36,29 @@ pub struct MetaSyntax {
 }
 
 pub struct Yfelo<'i> {
-    meta: MetaSyntax,
-    dirs: HashMap<&'i str, &'i dyn Directive>,
-    lang: &'i dyn Interpreter,
+    dirs: HashMap<&'i str, Box<dyn Directive>>,
+    langs: HashMap<&'i str, Box<dyn Interpreter>>,
 }
 
 impl<'i> Yfelo<'i> {
-    pub fn new(meta: MetaSyntax, interpreter: &'i dyn Interpreter) -> Self {
+    pub fn new() -> Self {
         Self {
-            meta,
             dirs: HashMap::new(),
-            lang: interpreter,
+            langs: HashMap::new(),
         }
     }
 
-    pub fn parse(&'i self, source: &'i str) -> Result<Vec<Node<'i>>, SyntaxError> {
-        Reader::new(source, &self.meta, self.lang, &self.dirs).parse()
+    pub fn add_directive(&mut self, name: &'i str, dir: Box<dyn Directive>) {
+        self.dirs.insert(name, dir);
+    }
+
+    pub fn add_interpreter(&mut self, name: &'i str, lang: Box<dyn Interpreter>) {
+        self.langs.insert(name, lang);
+    }
+
+    pub fn parse(&'i self, source: &'i str, name: &'i str, meta: &'i MetaSyntax) -> Result<Vec<Node<'i>>, SyntaxError> {
+        let lang = self.langs.get(name).unwrap().as_ref();
+        Reader::new(source, meta, lang, &self.dirs).parse()
     }
 
     // pub fn transform(&'i self, reader: &'i str, ctx: &'i C) -> Result<String, Error<R>> {
