@@ -10,10 +10,10 @@ ident = { (letter | "_") ~ (letter | digit | "_")* }
 number = { digit+ ~ ("." ~ digit+)? }
 string = { "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
 
-atom = { number | string | ident | "(" ~ expr ~ ")" | "[" ~ (expr ~ ",")* ~ expr ~ "]" }
+atom = { number | string | ident | "(" ~ expr ~ ")" | "[" ~ (expr ~ ",")* ~ expr? ~ "]" }
 
-prefix = { "!" | "~" | "-" | "+" }
-suffix = { "(" ~ expr ~ ")" | "[" ~ expr ~ "]" | "." ~ ident }
+prefix = { "!" | "-" | "+" }
+suffix = { "(" ~ (expr ~ ",")* ~ expr? ~ ")" | "[" ~ expr ~ "]" | "." ~ ident }
 
 expr_unary = _{ prefix* ~ atom ~ suffix* }
 expr_pow = _{ expr_unary ~ ("**" ~ expr_unary)* }
@@ -25,6 +25,6 @@ expr_eq = _{ expr_comp ~ (("==" | "!=") ~ expr_comp)* }
 expr_bitand = _{ expr_eq ~ ("&" ~ expr_eq)* }
 expr_bitxor = _{ expr_bitand ~ ("^" ~ expr_bitand)* }
 expr_bitor = _{ expr_bitxor ~ ("|" ~ expr_bitxor)* }
-expr_logand = _{ expr_bitor ~ ("&&" ~ expr_bitor)* }
-expr_logor = _{ expr_logand ~ ("||" ~ expr_logand)* }
-expr = _{ expr_logor }
+expr_and = _{ expr_bitor ~ ("&&" ~ expr_bitor)* }
+expr_or = _{ expr_and ~ ("||" ~ expr_and)* }
+expr = _{ expr_or }

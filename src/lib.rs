@@ -1,3 +1,5 @@
+#![feature(trait_upcasting)]
+
 #[macro_use]
 extern crate pest_derive;
 
