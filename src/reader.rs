@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::directive::Directive;
+use crate::directive::{Directive, StubMeta};
 use crate::error::SyntaxError;
 use crate::language::{Expr, Language, Pattern};
 use crate::{Element, MetaSyntax, Node};
@@ -24,7 +24,7 @@ impl<'i> Reader<'i> {
             dirs,
             stack: vec![(Element {
                 name: "",
-                meta: Box::new(()),
+                meta: Box::new(StubMeta),
                 children: Some(vec![]),
             }, (0, 0))],
         }
@@ -81,7 +81,7 @@ impl<'i> Reader<'i> {
             Ok(())
         } else {
             Err(SyntaxError {
-                message: format!("expected close tag {}", self.meta.right),
+                message: format!("invalid tag syntax"),
                 range: (self.offset, self.offset + 1),
             })
         }

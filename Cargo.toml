@@ -5,6 +5,8 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.3.17", features = ["derive"] }
+dyn_std = "0.1.1"
+dyn_derive = "0.1.2"
 once_cell = "1.19.0"
 pest = "2.7.10"
 pest_derive = "2.7.10"

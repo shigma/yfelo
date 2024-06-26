@@ -2,47 +2,26 @@ use std::{any::Any, fmt::Debug};
 
 use crate::error::SyntaxError;
 
-pub trait AsAny {
-    fn as_any(&self) -> &dyn Any;
-}
-
-impl<T: Any> AsAny for T {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-}
-
 pub trait Language {
     fn parse_expr(&self, input: &str) -> Result<(Box<dyn Expr>, usize), SyntaxError>;
     fn parse_pattern(&self, input: &str) -> Result<(Box<dyn Pattern>, usize), SyntaxError>;
 }
 
-pub trait SafeEq {
-    fn safe_eq(&self, other: &dyn Any) -> bool;
-}
+#[dyn_trait]
+pub trait Expr: Debug + Clone + PartialEq {}
 
-impl<T: PartialEq + 'static> SafeEq for T {
-    fn safe_eq(&self, other: &dyn Any) -> bool {
-        match other.downcast_ref::<Self>() {
-            Some(other) => self == other,
-            None => false,
-        }
-    }
-}
+#[dyn_trait]
+pub trait Pattern: Debug + Clone + PartialEq {}
 
-// we cannot use `PartialEq<Self>` because PartialEq is not object-safe
-// we cannot use `PartialEq<dyn Expr>` because it introduces cycle
-pub trait Expr: Debug + AsAny + SafeEq {}
-
-pub trait Pattern: Debug + AsAny {}
-
-pub trait Context: AsAny {
+#[dyn_trait]
+pub trait Context {
     fn eval(&self, expr: &dyn Expr) -> Result<Box<dyn Value>, /* Self::Error */ Box<dyn Any>>;
     fn fork(&self) -> Box<dyn Context>;
     fn bind(&mut self, pattern: &dyn Pattern, value: Box<dyn Value>) -> Result<(), /* Self::Error */ Box<dyn Any>>;
 }
 
-pub trait Value: AsAny {
+#[dyn_trait]
+pub trait Value: Debug + PartialEq {
     fn to_string(&self) -> Result<String, /* Self::Error */ Box<dyn Any>>;
     fn as_bool(&self) -> Result<bool, /* Self::Error */ Box<dyn Any>>;
     fn as_entries(&self) -> Result<Vec<(Box<dyn Value>, Box<dyn Value>)>, /* Self::Error */ Box<dyn Any>>;
@@ -53,11 +32,12 @@ pub mod default {
     use std::collections::BTreeMap;
     use std::{fmt, ops};
 
+    use dyn_std::Downcast;
     use pest::iterators::{Pair, Pairs};
     use pest::Parser;
 
     use crate::error::SyntaxError;
-    use super::{AsAny, Value as _};
+    use super::Value as _;
 
     #[derive(Parser)]
     #[grammar = "default.pest"]
@@ -274,7 +254,7 @@ pub mod default {
         left_assoc!(from_or, from_and);
     }
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone, PartialEq)]
     pub enum Pattern {
         Ident(String),
     }
@@ -372,7 +352,7 @@ pub mod default {
 
     impl super::Context for Context {
         fn eval<'i>(&'i self, expr: &'i dyn super::Expr) -> Result<Box<dyn super::Value>, Box<dyn Any>> {
-            let expr = expr.as_any().downcast_ref::<Expr>().unwrap();
+            let expr = expr.downcast_ref::<Expr>().unwrap();
             Ok(Box::new(self._eval(expr)?))
         }
 
@@ -383,9 +363,9 @@ pub mod default {
         }
 
         fn bind(&mut self, pattern: &dyn super::Pattern, value: Box<dyn super::Value>) -> Result<(), /* Self::Error */ Box<dyn Any>> {
-            match pattern.as_any().downcast_ref::<Pattern>().unwrap() {
+            match pattern.downcast_ref::<Pattern>().unwrap() {
                 Pattern::Ident(ident) => {
-                    self.inner[ident] = (value.as_any()).downcast_ref::<Value>().unwrap().clone();
+                    self.inner[ident] = value.downcast_ref::<Value>().unwrap().clone();
                     Ok(())
                 },
             }

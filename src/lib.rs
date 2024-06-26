@@ -1,10 +1,12 @@
 #[macro_use]
+extern crate dyn_derive;
+
+#[macro_use]
 extern crate pest_derive;
 
-use std::any::Any;
 use std::collections::HashMap;
 
-use directive::{For, If};
+use directive::{For, If, Meta};
 use language::Expr;
 use reader::Reader;
 
@@ -21,14 +23,13 @@ pub mod writer;
 #[derive(Debug)]
 pub struct Element<'i> {
     pub name: &'i str,
-    pub meta: Box<dyn Any>,
+    pub meta: Box<dyn Meta>,
     pub children: Option<Vec<Node<'i>>>,
 }
 
 impl<'i> PartialEq for Element<'i> {
     fn eq(&self, other: &Self) -> bool {
-        // FIXME meta
-        self.name == other.name && self.children == other.children
+        self.name == other.name && self.children == other.children && self.meta.dyn_eq(other.meta.as_any())
     }
 }
 
@@ -43,7 +44,7 @@ impl<'i> PartialEq for Node<'i> {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Node::Text(a), Node::Text(b)) => a == b,
-            (Node::Expr(a), Node::Expr(b)) => a.safe_eq(b.as_any()),
+            (Node::Expr(a), Node::Expr(b)) => a.dyn_eq(b.as_any()),
             (Node::Element(a), Node::Element(b)) => a == b,
             _ => false,
         }
@@ -79,8 +80,8 @@ impl<'i> Yfelo<'i> {
         self.langs.insert(name, lang);
     }
 
-    pub fn parse(&'i self, source: &'i str, name: &'i str, meta: &'i MetaSyntax) -> Result<Vec<Node<'i>>, SyntaxError> {
-        let lang = self.langs.get(name).unwrap().as_ref();
+    pub fn parse(&'i self, source: &'i str, lang_name: &'i str, meta: &'i MetaSyntax) -> Result<Vec<Node<'i>>, SyntaxError> {
+        let lang = self.langs.get(lang_name).unwrap().as_ref();
         Reader::new(source, meta, lang, &self.dirs).parse()
     }
 
