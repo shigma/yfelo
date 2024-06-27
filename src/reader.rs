@@ -110,6 +110,7 @@ impl<'i> Reader<'i> {
                 }, range);
             },
             '/' => {
+                self.tag_close()?;
                 let element = self.stack.pop().unwrap().0;
                 if element.name != name {
                     return Err(SyntaxError {
