@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use crate::directive::{Directive, StubMeta};
+use crate::builtin::StubMeta;
+use crate::directive::Directive;
 use crate::language::{Expr, Language, Pattern, SyntaxError};
 use crate::{Element, MetaSyntax, Node};
 
@@ -8,13 +9,13 @@ pub struct Reader<'i>{
     pub lang: &'i dyn Language,
     input: &'i str,
     offset: usize,
-    dirs: &'i HashMap<&'i str, Box<dyn Directive>>,
+    dirs: &'i HashMap<String, Box<dyn Directive>>,
     meta: &'i MetaSyntax<'i>,
     stack: Vec<(Element<'i>, (usize, usize))>,
 }
 
 impl<'i> Reader<'i> {
-    pub fn new(source: &'i str, meta: &'i MetaSyntax, lang: &'i dyn Language, dirs: &'i HashMap<&'i str, Box<dyn Directive>>) -> Self {
+    pub fn new(source: &'i str, meta: &'i MetaSyntax, lang: &'i dyn Language, dirs: &'i HashMap<String, Box<dyn Directive>>) -> Self {
         Self {
             input: source,
             offset: 0,
@@ -114,7 +115,7 @@ impl<'i> Reader<'i> {
         };
         match c {
             '#' => {
-                let meta = dir.parse(self)?;
+                let meta = dir.parse_open(self)?;
                 self.push_layer(Element {
                     name,
                     meta,
@@ -133,7 +134,7 @@ impl<'i> Reader<'i> {
                 self.push_node(Node::Element(element));
             },
             '@' => {
-                let meta = dir.parse(self)?;
+                let meta = dir.parse_open(self)?;
                 self.push_node(Node::Element(Element {
                     name,
                     meta,

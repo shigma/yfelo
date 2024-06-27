@@ -6,12 +6,12 @@ use crate::Node;
 
 pub struct Writer<'i> {
     pub lang: &'i dyn Language,
-    dirs: &'i HashMap<&'i str, Box<dyn Directive>>,
+    dirs: &'i HashMap<String, Box<dyn Directive>>,
     output: String,
 }
 
 impl<'i> Writer<'i> {
-    pub fn new(lang: &'i dyn Language, dirs: &'i HashMap<&'i str, Box<dyn Directive>>) -> Self {
+    pub fn new(lang: &'i dyn Language, dirs: &'i HashMap<String, Box<dyn Directive>>) -> Self {
         Self {
             output: String::new(),
             lang,
