@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use dyn_std::Downcast;
 
-use crate::language::{Context, Expr, Pattern, SyntaxError, RuntimeError};
+use crate::language::{Context, Expr, Pattern, RuntimeError, SyntaxError};
 use crate::reader::Reader;
 use crate::writer::Writer;
 use crate::Element;
@@ -63,7 +63,8 @@ impl Directive for If {
 
 #[derive(Debug, PartialEq)]
 pub struct ForMeta {
-    pat: Box<dyn Pattern>,
+    vpat: Box<dyn Pattern>,
+    kpat: Option<Box<dyn Pattern>>,
     expr: Box<dyn Expr>,
 }
 
@@ -73,11 +74,15 @@ pub struct For;
 
 impl Directive for For {
     fn parse(&self, reader: &mut Reader) -> Result<Box<dyn Meta>, SyntaxError> {
-        let pat = reader.parse_pattern()?;
+        let vpat = reader.parse_pattern()?;
+        let kpat = match reader.parse_punct(",") {
+            Ok(_) => Some(reader.parse_pattern()?),
+            Err(_) => None,
+        };
         reader.parse_keyword("in")?;
         let expr = reader.parse_expr()?;
         reader.tag_close()?;
-        Ok(Box::new(ForMeta { pat, expr }))
+        Ok(Box::new(ForMeta { vpat, kpat, expr }))
     }
 
     fn render<'i>(&self, writer: &mut Writer<'i>, element: &'i Element, ctx: &dyn Context) -> Result<(), Box<dyn RuntimeError>> {
@@ -85,7 +90,10 @@ impl Directive for For {
         let entries = ctx.eval(meta.expr.as_ref())?.as_entries()?;
         for entry in entries {
             let mut inner = ctx.fork();
-            inner.bind(meta.pat.as_ref(), entry.0)?;
+            inner.bind(meta.vpat.as_ref(), entry.0)?;
+            if let Some(kpat) = &meta.kpat {
+                inner.bind(kpat.as_ref(), entry.1)?;
+            }
             let nodes = element.children.as_ref().unwrap();
             writer.render(nodes, inner.as_ref())?;
         }

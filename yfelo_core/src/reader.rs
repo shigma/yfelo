@@ -62,6 +62,19 @@ impl<'i> Reader<'i> {
         Ok(expr)
     }
 
+    pub fn parse_punct(&mut self, punct: &str) -> Result<(), SyntaxError> {
+        if self.input.starts_with(punct) {
+            self.skip(punct.len());
+            self.trim_start();
+            Ok(())
+        } else {
+            Err(SyntaxError {
+                message: format!("expected punctuation {}", punct),
+                range: (self.offset, self.offset + 1),
+            })
+        }
+    }
+
     pub fn parse_keyword(&mut self, keyword: &str) -> Result<(), SyntaxError> {
         if self.input.starts_with(keyword) && !self.input[keyword.len()..].starts_with(|c: char| c.is_ascii_alphanumeric()) {
             self.skip(keyword.len());
