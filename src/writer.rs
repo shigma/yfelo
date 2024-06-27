@@ -1,8 +1,7 @@
-use std::any::Any;
 use std::collections::HashMap;
 
 use crate::directive::Directive;
-use crate::language::{Context, Language};
+use crate::language::{Context, Language, RuntimeError};
 use crate::Node;
 
 pub struct Writer<'i> {
@@ -20,22 +19,22 @@ impl<'i> Writer<'i> {
         }
     }
 
-    pub fn render_node(&mut self, node: &'i Node<'i>, ctx: &dyn Context) -> Result<(), Box<dyn Any>> {
-        match node {
-            Node::Text(text) => self.output += text,
-            Node::Expr(expr) => self.output += ctx.eval(expr.as_ref())?.to_string()?.as_str(),
-            Node::Element(element) => {
-                let dir = self.dirs.get(element.name).unwrap();
-                dir.render(self, element, ctx)?;
-            },
+    pub fn render(&mut self, nodes: &'i Vec<Node<'i>>, ctx: &dyn Context) -> Result<(), Box<dyn RuntimeError>> {
+        for node in nodes {
+            match node {
+                Node::Text(text) => self.output += text,
+                Node::Expr(expr) => self.output += ctx.eval(expr.as_ref())?.to_string()?.as_str(),
+                Node::Element(element) => {
+                    let dir = self.dirs.get(element.name).unwrap();
+                    dir.render(self, element, ctx)?;
+                },
+            }
         }
         Ok(())
     }
 
-    pub fn render_layer(&mut self, nodes: &'i Vec<Node<'i>>, ctx: &dyn Context) -> Result<(), Box<dyn Any>> {
-        for node in nodes {
-            self.render_node(node, ctx)?;
-        }
-        Ok(())
+    pub fn run(mut self, nodes: &'i Vec<Node<'i>>, ctx: &dyn Context) -> Result<String, Box<dyn RuntimeError>> {
+        self.render(nodes, ctx)?;
+        Ok(self.output)
     }
 }

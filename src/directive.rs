@@ -1,17 +1,15 @@
-use std::any::Any;
 use std::fmt::Debug;
 
 use dyn_std::Downcast;
 
-use crate::error::SyntaxError;
-use crate::language::{Context, Expr, Pattern};
+use crate::language::{Context, Expr, Pattern, SyntaxError, RuntimeError};
 use crate::reader::Reader;
 use crate::writer::Writer;
 use crate::Element;
 
 pub trait Directive {
     fn parse(&self, reader: &mut Reader) -> Result<Box<dyn Meta>, SyntaxError>;
-    fn render<'i>(&self, writer: &mut Writer<'i>, element: &'i Element, ctx: &dyn Context) -> Result<(), Box<dyn Any>>;
+    fn render<'i>(&self, writer: &mut Writer<'i>, element: &'i Element, ctx: &dyn Context) -> Result<(), Box<dyn RuntimeError>>;
 }
 
 #[dyn_trait]
@@ -30,9 +28,9 @@ impl Directive for Stub {
         Ok(Box::new(StubMeta))
     }
 
-    fn render<'i>(&self, writer: &mut Writer<'i>, element: &'i Element, ctx: &dyn Context) -> Result<(), Box<dyn Any>> {
+    fn render<'i>(&self, writer: &mut Writer<'i>, element: &'i Element, ctx: &dyn Context) -> Result<(), Box<dyn RuntimeError>> {
         let nodes = element.children.as_ref().unwrap();
-        writer.render_layer(nodes, ctx)
+        writer.render(nodes, ctx)
     }
 }
 
@@ -52,12 +50,12 @@ impl Directive for If {
         Ok(Box::new(IfMeta { expr }))
     }
 
-    fn render<'i>(&self, writer: &mut Writer<'i>, element: &'i Element, ctx: &dyn Context) -> Result<(), Box<dyn Any>> {
+    fn render<'i>(&self, writer: &mut Writer<'i>, element: &'i Element, ctx: &dyn Context) -> Result<(), Box<dyn RuntimeError>> {
         let meta = element.meta.downcast_ref::<IfMeta>().unwrap();
         let bool = ctx.eval(meta.expr.as_ref())?.as_bool()?;
         if bool {
             let nodes = element.children.as_ref().unwrap();
-            return writer.render_layer(nodes, ctx);
+            return writer.render(nodes, ctx);
         }
         Ok(())
     }
@@ -82,14 +80,14 @@ impl Directive for For {
         Ok(Box::new(ForMeta { pat, expr }))
     }
 
-    fn render<'i>(&self, writer: &mut Writer<'i>, element: &'i Element, ctx: &dyn Context) -> Result<(), Box<dyn Any>> {
+    fn render<'i>(&self, writer: &mut Writer<'i>, element: &'i Element, ctx: &dyn Context) -> Result<(), Box<dyn RuntimeError>> {
         let meta = element.meta.downcast_ref::<ForMeta>().unwrap();
         let entries = ctx.eval(meta.expr.as_ref())?.as_entries()?;
         for entry in entries {
             let mut inner = ctx.fork();
             inner.bind(meta.pat.as_ref(), entry.0)?;
             let nodes = element.children.as_ref().unwrap();
-            writer.render_layer(nodes, inner.as_ref())?;
+            writer.render(nodes, inner.as_ref())?;
         }
         Ok(())
     }

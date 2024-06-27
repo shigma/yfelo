@@ -1,6 +1,16 @@
-use std::{any::Any, fmt::Debug};
+use std::fmt::Debug;
 
-use crate::error::SyntaxError;
+#[derive(Debug, Clone, PartialEq)]
+pub struct SyntaxError {
+    pub message: String,
+    pub range: (usize, usize),
+}
+
+#[derive(Debug, Clone)]
+pub enum Error {
+    Syntax(SyntaxError),
+    Runtime(Box<dyn RuntimeError>),
+}
 
 pub trait Language {
     fn parse_expr(&self, input: &str) -> Result<(Box<dyn Expr>, usize), SyntaxError>;
@@ -15,20 +25,22 @@ pub trait Pattern: Debug + Clone + PartialEq {}
 
 #[dyn_trait]
 pub trait Context {
-    fn eval(&self, expr: &dyn Expr) -> Result<Box<dyn Value>, /* Self::Error */ Box<dyn Any>>;
+    fn eval(&self, expr: &dyn Expr) -> Result<Box<dyn Value>, Box<dyn RuntimeError>>;
     fn fork(&self) -> Box<dyn Context>;
-    fn bind(&mut self, pattern: &dyn Pattern, value: Box<dyn Value>) -> Result<(), /* Self::Error */ Box<dyn Any>>;
+    fn bind(&mut self, pattern: &dyn Pattern, value: Box<dyn Value>) -> Result<(), Box<dyn RuntimeError>>;
 }
 
 #[dyn_trait]
-pub trait Value: Debug + PartialEq {
-    fn to_string(&self) -> Result<String, /* Self::Error */ Box<dyn Any>>;
-    fn as_bool(&self) -> Result<bool, /* Self::Error */ Box<dyn Any>>;
-    fn as_entries(&self) -> Result<Vec<(Box<dyn Value>, Box<dyn Value>)>, /* Self::Error */ Box<dyn Any>>;
+pub trait Value: Debug + Clone + PartialEq {
+    fn to_string(&self) -> Result<String, Box<dyn RuntimeError>>;
+    fn as_bool(&self) -> Result<bool, Box<dyn RuntimeError>>;
+    fn as_entries(&self) -> Result<Vec<(Box<dyn Value>, Box<dyn Value>)>, Box<dyn RuntimeError>>;
 }
 
+#[dyn_trait]
+pub trait RuntimeError: Debug + Clone {}
+
 pub mod default {
-    use std::any::Any;
     use std::collections::BTreeMap;
     use std::{fmt, ops};
 
@@ -36,7 +48,7 @@ pub mod default {
     use pest::iterators::{Pair, Pairs};
     use pest::Parser;
 
-    use crate::error::SyntaxError;
+    use super::SyntaxError;
     use super::Value as _;
 
     #[derive(Parser)]
@@ -271,12 +283,24 @@ pub mod default {
         }
     }
 
+    impl<T: Into<String>> From<T> for Pattern {
+        fn from(value: T) -> Self {
+            Pattern::Ident(value.into())
+        }
+    }
+
     pub struct Context {
         inner: Value,
     }
 
     impl Context {
-        fn _eval(&self, expr: &Expr) -> Result<Value, Box<dyn Any>> {
+        pub fn new() -> Self {
+            Self {
+                inner: Value::Object(BTreeMap::new()),
+            }
+        }
+
+        fn _eval(&self, expr: &Expr) -> Result<Value, Box<dyn super::RuntimeError>> {
             Ok(match expr {
                 Expr::Number(n) => Value::Number(n.clone()),
                 Expr::String(s) => Value::String(s.clone()),
@@ -351,7 +375,7 @@ pub mod default {
     }
 
     impl super::Context for Context {
-        fn eval<'i>(&'i self, expr: &'i dyn super::Expr) -> Result<Box<dyn super::Value>, Box<dyn Any>> {
+        fn eval<'i>(&'i self, expr: &'i dyn super::Expr) -> Result<Box<dyn super::Value>, Box<dyn super::RuntimeError>> {
             let expr = expr.downcast_ref::<Expr>().unwrap();
             Ok(Box::new(self._eval(expr)?))
         }
@@ -362,10 +386,12 @@ pub mod default {
             })
         }
 
-        fn bind(&mut self, pattern: &dyn super::Pattern, value: Box<dyn super::Value>) -> Result<(), /* Self::Error */ Box<dyn Any>> {
+        fn bind(&mut self, pattern: &dyn super::Pattern, value: Box<dyn super::Value>) -> Result<(), Box<dyn super::RuntimeError>> {
             match pattern.downcast_ref::<Pattern>().unwrap() {
                 Pattern::Ident(ident) => {
-                    self.inner[ident] = value.downcast_ref::<Value>().unwrap().clone();
+                    // TODO: use `.downcast()` directly
+                    // TODO: handle errors
+                    self.inner[ident] = *value.as_any_box().downcast().unwrap();
                     Ok(())
                 },
             }
@@ -383,19 +409,57 @@ pub mod default {
     }
 
     impl Value {
-        pub fn as_number(&self) -> Result<f64, Box<dyn Any>> {
+        pub fn as_number(&self) -> Result<f64, Box<dyn super::RuntimeError>> {
             match &self {
                 Value::Number(n) => Ok(*n),
                 Value::Bool(b) => Ok(if *b { 1. } else { 0. }),
-                _ => Err(Box::new(())),
+                _ => Err(Box::new(RuntimeError {})),
             }
         }
 
-        pub fn as_string(&self) -> Result<&String, Box<dyn Any>> {
+        pub fn as_string(&self) -> Result<&String, Box<dyn super::RuntimeError>> {
             match &self {
                 Value::String(s) => Ok(s),
-                _ => Err(Box::new(())),
+                _ => Err(Box::new(RuntimeError {})),
             }
+        }
+    }
+
+    macro_rules! impl_from_number {
+        ($ty:ty) => {
+            impl From<$ty> for Value {
+                fn from(value: $ty) -> Self {
+                    Value::Number(value as f64)
+                }
+            }
+        };
+    }
+
+    impl_from_number!(u8);
+    impl_from_number!(u16);
+    impl_from_number!(u32);
+    impl_from_number!(u64);
+    impl_from_number!(u128);
+    impl_from_number!(usize);
+    impl_from_number!(i8);
+    impl_from_number!(i16);
+    impl_from_number!(i32);
+    impl_from_number!(i64);
+    impl_from_number!(i128);
+    impl_from_number!(isize);
+    impl_from_number!(f32);
+    impl_from_number!(f64);
+
+    // we cannot use T: Into<String> here because of conflicts
+    impl From<String> for Value {
+        fn from(value: String) -> Self {
+            Value::String(value)
+        }
+    }
+
+    impl From<&str> for Value {
+        fn from(value: &str) -> Self {
+            Value::String(value.into())
         }
     }
 
@@ -467,7 +531,7 @@ pub mod default {
     }
 
     impl super::Value for Value {
-        fn to_string(&self) -> Result<String, Box<dyn Any>> {
+        fn to_string(&self) -> Result<String, Box<dyn super::RuntimeError>> {
             match &self {
                 Value::Null => Ok("".to_string()),
                 // TODO partial object
@@ -475,7 +539,7 @@ pub mod default {
             }
         }
 
-        fn as_bool(&self) -> Result<bool, Box<dyn Any>> {
+        fn as_bool(&self) -> Result<bool, Box<dyn super::RuntimeError>> {
             match &self {
                 Value::Null => Ok(false),
                 Value::Bool(b) => Ok(*b),
@@ -486,7 +550,7 @@ pub mod default {
             }
         }
 
-        fn as_entries(&self) -> Result<Vec<(Box<dyn super::Value>, Box<dyn super::Value>)>, /* Self::Error */ Box<dyn Any>> {
+        fn as_entries(&self) -> Result<Vec<(Box<dyn super::Value>, Box<dyn super::Value>)>, Box<dyn super::RuntimeError>> {
             match &self {
                 Value::Array(vec) => Ok(vec.iter().enumerate().map(|(k, v)| {
                     let value = Box::new(v.clone()) as Box<dyn super::Value>;
@@ -498,8 +562,13 @@ pub mod default {
                     let key = Box::new(Value::String(k.clone())) as Box<dyn super::Value>;
                     (value, key)
                 }).collect()),
-                _ => Err(Box::new(())),
+                _ => Err(Box::new(RuntimeError {})),
             }
         }
     }
+
+    #[derive(Debug, Clone)]
+    struct RuntimeError {}
+
+    impl super::RuntimeError for RuntimeError {}
 }

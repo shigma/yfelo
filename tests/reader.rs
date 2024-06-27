@@ -11,7 +11,7 @@ const YFELO: Lazy<Yfelo> = Lazy::new(|| {
     yfelo
 });
 
-const LANG_NAME: &str = "default";
+const LANG: Lazy<Box<dyn yfelo::Language>> = Lazy::new(|| Box::new(Language));
 
 const META_SYNTAX: MetaSyntax = MetaSyntax {
     left: "{",
@@ -38,8 +38,8 @@ macro_rules! binary {
 
 #[test]
 pub fn basic_1() {
-    let y = YFELO;
-    let nodes = y.parse("(Hello) {world}!", LANG_NAME, &META_SYNTAX).unwrap();
+    let (y, l) = (YFELO, LANG);
+    let nodes = y.parse("(Hello) {world}!", l.as_ref(), &META_SYNTAX).unwrap();
     assert_eq!(nodes, vec![
         Node::Text("(Hello) "),
         Node::Expr(Box::from(ident!("world"))),
@@ -49,8 +49,8 @@ pub fn basic_1() {
 
 #[test]
 pub fn basic_2() {
-    let y = YFELO;
-    let nodes = y.parse("{world}", LANG_NAME, &META_SYNTAX).unwrap();
+    let (y, l) = (YFELO, LANG);
+    let nodes = y.parse("{world}", l.as_ref(), &META_SYNTAX).unwrap();
     assert_eq!(nodes, vec![
         Node::Expr(Box::from(ident!("world"))),
     ]);
@@ -58,8 +58,8 @@ pub fn basic_2() {
 
 #[test]
 pub fn basic_3() {
-    let y = YFELO;
-    let nodes = y.parse("{w(or[ld])}", LANG_NAME, &META_SYNTAX).unwrap();
+    let (y, l) = (YFELO, LANG);
+    let nodes = y.parse("{w(or[ld])}", l.as_ref(), &META_SYNTAX).unwrap();
     assert_eq!(nodes, vec![
         Node::Expr(Box::from(apply!(
             ident!("w"),
@@ -70,12 +70,12 @@ pub fn basic_3() {
 
 #[test]
 pub fn basic_4() {
-    let y = YFELO;
+    let (y, l) = (YFELO, LANG);
     let meta = MetaSyntax {
         left: "[",
         right: "]",
     };
-    let nodes = y.parse("[w[or][ld]]!", LANG_NAME, &meta).unwrap();
+    let nodes = y.parse("[w[or][ld]]!", l.as_ref(), &meta).unwrap();
     assert_eq!(nodes, vec![
         Node::Expr(Box::from(binary!(
             binary!(ident!("w"), Index, ident!("or")),
@@ -88,40 +88,40 @@ pub fn basic_4() {
 
 #[test]
 pub fn invalid_tag_1() {
-    let y = YFELO;
-    let err = y.parse("{Hello} {world", LANG_NAME, &META_SYNTAX).unwrap_err();
+    let (y, l) = (YFELO, LANG);
+    let err = y.parse("{Hello} {world", l.as_ref(), &META_SYNTAX).unwrap_err();
     assert_eq!(err.message, "invalid tag syntax");
     assert_eq!(err.range, (14, 15));
 }
 
 #[test]
 pub fn invalid_tag_2() {
-    let y = YFELO;
-    let err = y.parse("{Hel(lo}", LANG_NAME, &META_SYNTAX).unwrap_err();
+    let (y, l) = (YFELO, LANG);
+    let err = y.parse("{Hel(lo}", l.as_ref(), &META_SYNTAX).unwrap_err();
     assert_eq!(err.message, "invalid tag syntax");
     assert_eq!(err.range, (4, 5));
 }
 
 #[test]
 pub fn invalid_tag_3() {
-    let y = YFELO;
-    let err = y.parse("{Hel)lo}", LANG_NAME, &META_SYNTAX).unwrap_err();
+    let (y, l) = (YFELO, LANG);
+    let err = y.parse("{Hel)lo}", l.as_ref(), &META_SYNTAX).unwrap_err();
     assert_eq!(err.message, "invalid tag syntax");
     assert_eq!(err.range, (4, 5));
 }
 
 #[test]
 pub fn invalid_tag_4() {
-    let y = YFELO;
-    let err = y.parse("{H(e[l)l]o}", LANG_NAME, &META_SYNTAX).unwrap_err();
+    let (y, l) = (YFELO, LANG);
+    let err = y.parse("{H(e[l)l]o}", l.as_ref(), &META_SYNTAX).unwrap_err();
     assert_eq!(err.message, "invalid tag syntax");
     assert_eq!(err.range, (2, 3));
 }
 
 #[test]
 pub fn tag_1() {
-    let y = YFELO;
-    let nodes = y.parse("{#foo}Hello{/foo} {#bar}world{/bar}!", LANG_NAME, &META_SYNTAX).unwrap();
+    let (y, l) = (YFELO, LANG);
+    let nodes = y.parse("{#foo}Hello{/foo} {#bar}world{/bar}!", l.as_ref(), &META_SYNTAX).unwrap();
     assert_eq!(nodes, vec![
         Node::Element(Element {
             name: "foo",
@@ -140,8 +140,8 @@ pub fn tag_1() {
 
 #[test]
 pub fn tag_2() {
-    let y = YFELO;
-    let nodes = y.parse("{#foo}Hello{@bar} {#bar}world{/bar}!{/foo}", LANG_NAME, &META_SYNTAX).unwrap();
+    let (y, l) = (YFELO, LANG);
+    let nodes = y.parse("{#foo}Hello{@bar} {#bar}world{/bar}!{/foo}", l.as_ref(), &META_SYNTAX).unwrap();
     assert_eq!(nodes, vec![
         Node::Element(Element {
             name: "foo",
@@ -167,16 +167,16 @@ pub fn tag_2() {
 
 #[test]
 pub fn unmatched_tag_1() {
-    let y = YFELO;
-    let error = y.parse("{#foo}Hello {#bar}world{/foo}!{/bar}", LANG_NAME, &META_SYNTAX).unwrap_err();
+    let (y, l) = (YFELO, LANG);
+    let error = y.parse("{#foo}Hello {#bar}world{/foo}!{/bar}", l.as_ref(), &META_SYNTAX).unwrap_err();
     assert_eq!(error.message, "unmatched tag name");
     assert_eq!(error.range, (25, 28));
 }
 
 #[test]
 pub fn unmatched_tag_2() {
-    let y = YFELO;
-    let error = y.parse("{#foo}Hello{/foo} world{/bar}!", LANG_NAME, &META_SYNTAX).unwrap_err();
+    let (y, l) = (YFELO, LANG);
+    let error = y.parse("{#foo}Hello{/foo} world{/bar}!", l.as_ref(), &META_SYNTAX).unwrap_err();
     assert_eq!(error.message, "unmatched tag name");
     assert_eq!(error.range, (25, 28));
 }

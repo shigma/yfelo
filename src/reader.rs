@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 
 use crate::directive::{Directive, StubMeta};
-use crate::error::SyntaxError;
-use crate::language::{Expr, Language, Pattern};
+use crate::language::{Expr, Language, Pattern, SyntaxError};
 use crate::{Element, MetaSyntax, Node};
 
 pub struct Reader<'i>{
@@ -133,7 +132,7 @@ impl<'i> Reader<'i> {
         Ok(())
     }
 
-    pub fn parse(mut self) -> Result<Vec<Node<'i>>, SyntaxError> {
+    pub fn run(mut self) -> Result<Vec<Node<'i>>, SyntaxError> {
         while let Some(pos) = self.input.find(&self.meta.left) {
             if pos > 0 {
                 self.push_node(Node::Text(&self.input[..pos]));

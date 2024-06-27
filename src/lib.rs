@@ -7,15 +7,14 @@ extern crate pest_derive;
 use std::collections::HashMap;
 
 use directive::{For, If, Meta};
-use language::Expr;
+use language::{Context, Error, Expr, RuntimeError, SyntaxError};
 use reader::Reader;
+use writer::Writer;
 
 pub use crate::directive::Directive;
-pub use crate::error::{Error, SyntaxError};
 pub use crate::language::Language;
 
 pub mod directive;
-pub mod error;
 pub mod language;
 pub mod reader;
 pub mod writer;
@@ -80,28 +79,19 @@ impl<'i> Yfelo<'i> {
         self.langs.insert(name, lang);
     }
 
-    pub fn parse(&'i self, source: &'i str, lang_name: &'i str, meta: &'i MetaSyntax) -> Result<Vec<Node<'i>>, SyntaxError> {
-        let lang = self.langs.get(lang_name).unwrap().as_ref();
-        Reader::new(source, meta, lang, &self.dirs).parse()
+    pub fn parse(&'i self, source: &'i str, lang: &'i dyn Language, meta: &'i MetaSyntax) -> Result<Vec<Node<'i>>, SyntaxError> {
+        let reader = Reader::new(source, meta, lang, &self.dirs);
+        reader.run()
     }
 
-    // pub fn transform(&'i self, reader: &'i str, ctx: &'i C) -> Result<String, Error<R>> {
-    //     let nodes = self.parse(reader).map_err(|e| Error::Syntax(e))?;
-    //     self.transform_nodes(nodes, ctx)
-    // }
+    pub fn render(&'i self, nodes: &'i Vec<Node<'i>>, lang: &'i dyn Language, ctx: &'i dyn Context) -> Result<String, Box<dyn RuntimeError>> {
+        let writer = Writer::new(lang, &self.dirs);
+        writer.run(nodes, ctx)
+    }
 
-    // fn transform_nodes(&'i self, nodes: Vec<Node<'i>>, ctx: &'i C) -> Result<String, Error<R>> {
-    //     let mut output = String::new();
-    //     for node in nodes {
-    //         match node {
-    //             Node::Text(text) => output += text,
-    //             Node::Expr(expr) => {
-    //                 let value = self.interpreter.eval(expr, ctx)?;
-    //                 output += &self.interpreter.serialize(&value);
-    //             },
-    //             _ => unimplemented!(),
-    //         }
-    //     }
-    //     Ok(output)
-    // }
+    pub fn run(&'i self, source: &'i str, lang: &'i dyn Language, meta: &'i MetaSyntax, ctx: &'i dyn Context) -> Result<String, Error> {
+        // let lang = self.langs.get(lang_name).unwrap().as_ref();
+        let nodes = self.parse(source, lang, meta).map_err(|e| Error::Syntax(e))?;
+        self.render(&nodes, lang, ctx).map_err(|e| Error::Runtime(e))
+    }
 }
