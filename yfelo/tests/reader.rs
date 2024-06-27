@@ -1,7 +1,7 @@
 use once_cell::sync::Lazy;
 use yfelo::directive::{Stub, StubMeta};
 use yfelo::{Element, MetaSyntax, Node, Yfelo};
-use yfelo::language::default::{BinaryOp, Expr, Language};
+use yfelo::default::{BinaryOp, Expr, Language};
 
 const YFELO: Lazy<Yfelo> = Lazy::new(|| {
     let mut yfelo = Yfelo::new();

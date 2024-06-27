@@ -519,4 +519,13 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
+ "yfelo_core",
+]
+
+[[package]]
+name = "yfelo_core"
+version = "0.1.0"
+dependencies = [
+ "dyn_derive",
+ "dyn_std",
 ]

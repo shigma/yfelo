@@ -1,0 +1,8 @@
+[package]
+name = "yfelo_core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+dyn_std = "0.1.1"
+dyn_derive = "0.1.2"

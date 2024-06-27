@@ -1,53 +1,32 @@
 #[macro_use]
 extern crate dyn_derive;
 
-#[macro_use]
-extern crate pest_derive;
-
 use std::collections::HashMap;
 
 use directive::{For, If, Meta};
-use language::{Context, Error, Expr, RuntimeError, SyntaxError};
-use reader::Reader;
-use writer::Writer;
 
-pub use crate::directive::Directive;
-pub use crate::language::Language;
+pub use directive::Directive;
+pub use language::*;
+pub use reader::Reader;
+pub use writer::Writer;
 
 pub mod directive;
 pub mod language;
 pub mod reader;
 pub mod writer;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Element<'i> {
     pub name: &'i str,
     pub meta: Box<dyn Meta>,
     pub children: Option<Vec<Node<'i>>>,
 }
 
-impl<'i> PartialEq for Element<'i> {
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name && self.children == other.children && self.meta.dyn_eq(other.meta.as_any())
-    }
-}
-
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Node<'i> {
     Text(&'i str),
     Expr(Box<dyn Expr>),
     Element(Element<'i>),
-}
-
-impl<'i> PartialEq for Node<'i> {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Node::Text(a), Node::Text(b)) => a == b,
-            (Node::Expr(a), Node::Expr(b)) => a.dyn_eq(b.as_any()),
-            (Node::Element(a), Node::Element(b)) => a == b,
-            _ => false,
-        }
-    }
 }
 
 pub struct MetaSyntax<'i> {
