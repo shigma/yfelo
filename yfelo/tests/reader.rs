@@ -126,13 +126,13 @@ pub fn tag_1() {
         Node::Element(Element {
             name: "foo",
             meta: Box::from(StubMeta),
-            children: Some(vec![Node::Text("Hello")]),
+            children: vec![Node::Text("Hello")],
         }),
         Node::Text(" "),
         Node::Element(Element {
             name: "bar",
             meta: Box::from(StubMeta),
-            children: Some(vec![Node::Text("world")]),
+            children: vec![Node::Text("world")],
         }),
         Node::Text("!"),
     ]);
@@ -146,21 +146,21 @@ pub fn tag_2() {
         Node::Element(Element {
             name: "foo",
             meta: Box::from(StubMeta),
-            children: Some(vec![
+            children: vec![
                 Node::Text("Hello"),
                 Node::Element(Element {
                     name: "bar",
                     meta: Box::from(StubMeta),
-                    children: None,
+                    children: vec![],
                 }),
                 Node::Text(" "),
                 Node::Element(Element {
                     name: "bar",
                     meta: Box::from(StubMeta),
-                    children: Some(vec![Node::Text("world")]),
+                    children: vec![Node::Text("world")],
                 }),
                 Node::Text("!"),
-            ]),
+            ],
         }),
     ]);
 }

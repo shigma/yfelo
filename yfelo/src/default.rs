@@ -406,6 +406,12 @@ impl_from_number!(isize);
 impl_from_number!(f32);
 impl_from_number!(f64);
 
+impl From<bool> for Value {
+    fn from(value: bool) -> Self {
+        Value::Bool(value)
+    }
+}
+
 // we cannot use T: Into<String> here because of conflicts
 impl From<String> for Value {
     fn from(value: String) -> Self {

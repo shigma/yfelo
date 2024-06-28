@@ -25,7 +25,7 @@ impl<'i> Reader<'i> {
             stack: vec![(Element {
                 name: "",
                 meta: Box::new(StubMeta),
-                children: Some(vec![]),
+                children: vec![],
             }, (0, 0))],
         }
     }
@@ -35,7 +35,7 @@ impl<'i> Reader<'i> {
     }
 
     fn push_node(&mut self, node: Node<'i>) {
-       self.stack.last_mut().unwrap().0.children.as_mut().unwrap().push(node)
+       self.stack.last_mut().unwrap().0.children.push(node)
     }
 
     pub fn skip(&mut self, offset: usize) {
@@ -119,7 +119,7 @@ impl<'i> Reader<'i> {
                 self.push_layer(Element {
                     name,
                     meta,
-                    children: Some(vec![]),
+                    children: vec![],
                 }, range);
             },
             '/' => {
@@ -138,7 +138,7 @@ impl<'i> Reader<'i> {
                 self.push_node(Node::Element(Element {
                     name,
                     meta,
-                    children: None,
+                    children: vec![],
                 }));
             },
             _ => unreachable!(),
@@ -170,6 +170,6 @@ impl<'i> Reader<'i> {
                 range: self.stack.last().unwrap().1,
             });
         }
-        Ok(self.stack.pop().unwrap().0.children.unwrap())
+        Ok(self.stack.pop().unwrap().0.children)
     }
 }

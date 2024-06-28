@@ -8,7 +8,7 @@ use crate::writer::Writer;
 pub struct Element<'i> {
     pub name: &'i str,
     pub meta: Box<dyn Meta>,
-    pub children: Option<Vec<Node<'i>>>,
+    pub children: Vec<Node<'i>>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -19,9 +19,9 @@ pub enum Node<'i> {
 }
 
 #[dyn_trait]
-pub trait Directive {
-    fn parse_open(&self, reader: &mut Reader) -> Result<Box<dyn Meta>, SyntaxError>;
-    fn render<'i>(&self, writer: &mut Writer<'i>, element: &'i Element, ctx: &dyn Context) -> Result<(), Box<dyn RuntimeError>>;
+pub trait Directive<M = Box<dyn Meta>> {
+    fn parse_open(&self, reader: &mut Reader) -> Result<M, SyntaxError>;
+    fn render<'i>(&self, this: &M, writer: &mut Writer<'i>, children: &'i Vec<Node>, ctx: &dyn Context) -> Result<(), Box<dyn RuntimeError>>;
 }
 
 #[dyn_trait]

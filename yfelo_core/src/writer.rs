@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 
-use crate::directive::Directive;
+use crate::directive::{Directive, Node};
 use crate::language::{Context, Language, RuntimeError};
-use crate::Node;
 
 pub struct Writer<'i> {
     pub lang: &'i dyn Language,
@@ -26,7 +25,7 @@ impl<'i> Writer<'i> {
                 Node::Expr(expr) => self.output += ctx.eval(expr.as_ref())?.to_string()?.as_str(),
                 Node::Element(element) => {
                     let dir = self.dirs.get(element.name).unwrap();
-                    dir.render(self, element, ctx)?;
+                    dir.render(&element.meta, self, &element.children, ctx)?;
                 },
             }
         }
