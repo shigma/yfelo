@@ -164,7 +164,7 @@ pub fn tag_2() {
 pub fn unmatched_tag_1() {
     let (y, l) = (YFELO, LANG);
     let error = y.parse("{#foo}Hello {#bar}world{/foo}!{/bar}", l.as_ref(), &META_SYNTAX).unwrap_err();
-    assert_eq!(error.message, "unmatched tag name");
+    assert_eq!(error.message, "unmatched tag name: expect 'bar', found 'foo'");
     assert_eq!(error.range, (25, 28));
 }
 
@@ -172,6 +172,14 @@ pub fn unmatched_tag_1() {
 pub fn unmatched_tag_2() {
     let (y, l) = (YFELO, LANG);
     let error = y.parse("{#foo}Hello{/foo} world{/bar}!", l.as_ref(), &META_SYNTAX).unwrap_err();
-    assert_eq!(error.message, "unmatched tag name");
+    assert_eq!(error.message, "unmatched tag name 'bar'");
+    assert_eq!(error.range, (25, 28));
+}
+
+#[test]
+pub fn unmatched_tag_3() {
+    let (y, l) = (YFELO, LANG);
+    let error = y.parse("{#foo}Hello{/foo} world{#bar}!", l.as_ref(), &META_SYNTAX).unwrap_err();
+    assert_eq!(error.message, "unmatched tag name 'bar'");
     assert_eq!(error.range, (25, 28));
 }

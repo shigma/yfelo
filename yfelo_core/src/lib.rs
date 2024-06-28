@@ -51,13 +51,13 @@ impl Yfelo {
         reader.run()
     }
 
-    pub fn render<'i>(&'i self, nodes: &'i Vec<Node<'i>>, lang: &'i dyn Language, ctx: &'i mut dyn Context) -> Result<String, Box<dyn RuntimeError>> {
+    pub fn render<'i>(&'i self, nodes: Vec<Node<'i>>, lang: &'i dyn Language, ctx: &'i mut dyn Context) -> Result<String, Box<dyn RuntimeError>> {
         let writer = Writer::new(lang);
-        writer.run(nodes, ctx)
+        writer.run(&nodes, ctx)
     }
 
     pub fn run(&self, source: &str, lang: &dyn Language, meta: &MetaSyntax, ctx: &mut dyn Context) -> Result<String, Error> {
         let nodes = self.parse(source, lang, meta).map_err(|e| Error::Syntax(e))?;
-        self.render(&nodes, lang, ctx).map_err(|e| Error::Runtime(e))
+        self.render(nodes, lang, ctx).map_err(|e| Error::Runtime(e))
     }
 }

@@ -26,6 +26,8 @@ pub fn if_1() {
     let mut ctx: Box<dyn yfelo::Context> = Box::new(Context::new());
     ctx.bind(&Pattern::from("foo"), Box::new(Value::from(true))).unwrap();
     ctx.bind(&Pattern::from("bar"), Box::new(Value::from(false))).unwrap();
-    let output = y.run("{#if foo}Hello{/if}, {#if bar}world{/if}!", l.as_ref(), &META_SYNTAX, ctx.as_mut()).unwrap();
+    let output = y.run("
+        {#if foo}Hello{/if}, {#if bar}world{/if}!
+    ".trim(), l.as_ref(), &META_SYNTAX, ctx.as_mut()).unwrap();
     assert_eq!(output, "Hello, !");
 }

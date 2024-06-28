@@ -22,8 +22,7 @@ use crate::writer::Writer;
 pub struct Stub;
 
 impl DirectiveConstructor for Stub {
-    fn open(reader: &mut Reader, _: &TagInfo) -> Result<Self, SyntaxError> {
-        reader.tag_close()?;
+    fn open(_: &mut Reader, _: &TagInfo) -> Result<Self, SyntaxError> {
         Ok(Self)
     }
 
@@ -49,7 +48,6 @@ impl DirectiveConstructor for If {
     fn open(reader: &mut Reader, info: &TagInfo) -> Result<Self, SyntaxError> {
         info.expect_children()?;
         let expr = reader.parse_expr()?;
-        reader.tag_close()?;
         Ok(Self { expr })
     }
 
@@ -86,7 +84,6 @@ impl DirectiveConstructor for For {
         };
         reader.parse_keyword("in")?;
         let expr = reader.parse_expr()?;
-        reader.tag_close()?;
         Ok(Self { vpat, kpat, expr })
     }
 
@@ -124,21 +121,51 @@ impl DirectiveConstructor for For {
 #[derive(Debug, PartialEq)]
 pub struct Def {
     pat: Box<dyn Pattern>,
-    expr: Box<dyn Expr>,
+    params: Option<Vec<Box<dyn Pattern>>>,
+    expr: Option<Box<dyn Expr>>,
 }
 
 impl DirectiveConstructor for Def {
-    fn open(reader: &mut Reader, _: &TagInfo) -> Result<Self, SyntaxError> {
+    fn open(reader: &mut Reader, info: &TagInfo) -> Result<Self, SyntaxError> {
         let pat = reader.parse_pattern()?;
-        reader.parse_punct("=")?;
-        let expr = reader.parse_expr()?;
-        reader.tag_close()?;
-        Ok(Self { pat, expr })
+        let params = if let Ok(_) = reader.parse_punct("(") {
+            let mut params = vec![];
+            loop {
+                if let Ok(_) = reader.parse_punct(")") {
+                    break;
+                }
+                params.push(reader.parse_pattern()?);
+                if let Ok(_) = reader.parse_punct(",") {
+                    continue;
+                }
+                reader.parse_punct(")")?;
+                break;
+            }
+            Some(params)
+        } else {
+            None
+        };
+        let expr = if let Ok(_) = reader.parse_punct("=") {
+            info.expect_empty()?;
+            Some(reader.parse_expr()?)
+        } else {
+            info.expect_children()?;
+            None
+        };
+        Ok(Self { pat, params, expr })
     }
 
     fn render<'i>(&self, _: &mut Writer<'i>, _: &'i Vec<Node>, ctx: &mut dyn Context) -> Result<(), Box<dyn RuntimeError>> {
-        let value = ctx.eval(self.expr.as_ref())?;
-        ctx.bind(self.pat.as_ref(), value)?;
+        if let Some(_) = &self.params {
+            todo!();
+        } else {
+            if let Some(expr) = &self.expr {
+                let value = ctx.eval(expr.as_ref())?;
+                ctx.bind(self.pat.as_ref(), value)?;
+            } else {
+                todo!();
+            }
+        }
         Ok(())
     }
 }

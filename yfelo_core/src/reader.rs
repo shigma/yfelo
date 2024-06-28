@@ -5,6 +5,7 @@ use crate::directive::Directive;
 use crate::language::{Expr, Language, Pattern, SyntaxError};
 use crate::{Element, MetaSyntax, Node};
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct TagInfo<'i> {
     pub name: &'i str,
     pub range: (usize, usize),
@@ -127,7 +128,7 @@ impl<'i> Reader<'i> {
         }
     }
 
-    fn tag_open(&mut self, mark: char) -> Result<(), SyntaxError> {
+    fn directive(&mut self, mark: char) -> Result<(), SyntaxError> {
         let pos = self.input
             .find(|c: char| !c.is_ascii_alphanumeric())
             .unwrap_or(self.input.len());
@@ -151,9 +152,15 @@ impl<'i> Reader<'i> {
             },
             '/' => {
                 let (mut element, parent) = self.stack.pop().unwrap();
+                println!("{:?} {:?}", parent, info);
                 if parent.name != name {
+                    let suffix = if self.stack.len() > 0 {
+                        format!(": expect '{}', found '{}'", parent.name, name)
+                    } else {
+                        format!(" '{}'", name)
+                    };
                     return Err(SyntaxError {
-                        message: format!("unmatched tag name, expect {}, found {}", parent.name, name),
+                        message: format!("unmatched tag name{}", suffix),
                         range,
                     });
                 }
@@ -180,7 +187,8 @@ impl<'i> Reader<'i> {
             self.skip(pos + 1);
             if let Some(c @ ('#' | '/' | '@')) = self.input.chars().nth(0) {
                 self.skip(1);
-                self.tag_open(c)?;
+                self.directive(c)?;
+                self.tag_close()?;
             } else {
                 let expr = self.parse_expr()?;
                 self.tag_close()?;
@@ -193,7 +201,7 @@ impl<'i> Reader<'i> {
         let (element, info) = self.stack.pop().unwrap();
         if self.stack.len() > 0 {
             return Err(SyntaxError {
-                message: format!("unmatched tag name {}", info.name),
+                message: format!("unmatched tag name '{}'", info.name),
                 range: info.range,
             });
         }

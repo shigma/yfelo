@@ -23,8 +23,8 @@ pub enum Node<'i> {
 pub trait DirectiveConstructor: Sized + Debug + PartialEq {
     fn open(reader: &mut Reader, info: &TagInfo) -> Result<Self, SyntaxError>;
 
-    fn close(&mut self, reader: &mut Reader, _: &TagInfo) -> Result<(), SyntaxError> {
-        reader.tag_close()
+    fn close(&mut self, _: &mut Reader, _: &TagInfo) -> Result<(), SyntaxError> {
+        Ok(())
     }
 
     fn render<'i>(&self, writer: &mut Writer<'i>, children: &'i Vec<Node>, ctx: &mut dyn Context) -> Result<(), Box<dyn RuntimeError>>;
