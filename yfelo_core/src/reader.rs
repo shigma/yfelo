@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use crate::builtin::StubMeta;
-use crate::directive::Directive;
+use crate::builtin::Stub;
+use crate::directive::DirectiveConstructor;
 use crate::language::{Expr, Language, Pattern, SyntaxError};
 use crate::{Element, MetaSyntax, Node};
 
@@ -9,13 +9,13 @@ pub struct Reader<'i>{
     pub lang: &'i dyn Language,
     input: &'i str,
     offset: usize,
-    dirs: &'i HashMap<String, Box<dyn Directive>>,
+    dirs: &'i HashMap<String, Box<dyn DirectiveConstructor>>,
     meta: &'i MetaSyntax<'i>,
-    stack: Vec<(Element<'i>, (usize, usize))>,
+    stack: Vec<(Element<'i>, &'i str, (usize, usize))>,
 }
 
 impl<'i> Reader<'i> {
-    pub fn new(source: &'i str, meta: &'i MetaSyntax, lang: &'i dyn Language, dirs: &'i HashMap<String, Box<dyn Directive>>) -> Self {
+    pub fn new(source: &'i str, meta: &'i MetaSyntax, lang: &'i dyn Language, dirs: &'i HashMap<String, Box<dyn DirectiveConstructor>>) -> Self {
         Self {
             input: source,
             offset: 0,
@@ -23,15 +23,14 @@ impl<'i> Reader<'i> {
             lang,
             dirs,
             stack: vec![(Element {
-                name: "",
-                meta: Box::new(StubMeta),
+                directive: Box::new(Stub),
                 children: vec![],
-            }, (0, 0))],
+            }, "", (0, 0))],
         }
     }
 
-    fn push_layer(&mut self, element: Element<'i>, range: (usize, usize)) {
-        self.stack.push((element, range));
+    fn push_layer(&mut self, element: Element<'i>, name: &'i str, range: (usize, usize)) {
+        self.stack.push((element, name, range));
     }
 
     fn push_node(&mut self, node: Node<'i>) {
@@ -115,29 +114,28 @@ impl<'i> Reader<'i> {
         };
         match c {
             '#' => {
-                let meta = dir.parse_open(self)?;
+                let directive = dir.open(self)?;
                 self.push_layer(Element {
-                    name,
-                    meta,
+                    directive,
                     children: vec![],
-                }, range);
+                }, name, range);
             },
             '/' => {
                 self.tag_close()?;
-                let element = self.stack.pop().unwrap().0;
-                if element.name != name {
+                let (mut element, parent_name, _) = self.stack.pop().unwrap();
+                if parent_name != name {
                     return Err(SyntaxError {
                         message: format!("unmatched tag name"),
                         range,
                     });
                 }
+                element.directive.close()?;
                 self.push_node(Node::Element(element));
             },
             '@' => {
-                let meta = dir.parse_open(self)?;
+                let directive = dir.open(self)?;
                 self.push_node(Node::Element(Element {
-                    name,
-                    meta,
+                    directive,
                     children: vec![],
                 }));
             },
@@ -167,7 +165,7 @@ impl<'i> Reader<'i> {
         if self.stack.len() > 1 {
             return Err(SyntaxError {
                 message: format!("unmatched tag name"),
-                range: self.stack.last().unwrap().1,
+                range: self.stack.last().unwrap().2,
             });
         }
         Ok(self.stack.pop().unwrap().0.children)

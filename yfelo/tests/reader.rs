@@ -1,12 +1,12 @@
 use once_cell::sync::Lazy;
-use yfelo::builtin::{Stub, StubMeta};
+use yfelo::builtin::Stub;
 use yfelo::default::{BinaryOp, Expr, Language};
 use yfelo::{Element, MetaSyntax, Node, Yfelo};
 
 const YFELO: Lazy<Yfelo> = Lazy::new(|| {
     let mut yfelo = Yfelo::new();
-    yfelo.add_directive("foo", Box::new(Stub));
-    yfelo.add_directive("bar", Box::new(Stub));
+    yfelo.add_directive::<Stub>("foo");
+    yfelo.add_directive::<Stub>("bar");
     yfelo.add_language("default", Box::new(Language));
     yfelo
 });
@@ -124,14 +124,12 @@ pub fn tag_1() {
     let nodes = y.parse("{#foo}Hello{/foo} {#bar}world{/bar}!", l.as_ref(), &META_SYNTAX).unwrap();
     assert_eq!(nodes, vec![
         Node::Element(Element {
-            name: "foo",
-            meta: Box::from(StubMeta),
+            directive: Box::from(Stub),
             children: vec![Node::Text("Hello")],
         }),
         Node::Text(" "),
         Node::Element(Element {
-            name: "bar",
-            meta: Box::from(StubMeta),
+            directive: Box::from(Stub),
             children: vec![Node::Text("world")],
         }),
         Node::Text("!"),
@@ -144,19 +142,16 @@ pub fn tag_2() {
     let nodes = y.parse("{#foo}Hello{@bar} {#bar}world{/bar}!{/foo}", l.as_ref(), &META_SYNTAX).unwrap();
     assert_eq!(nodes, vec![
         Node::Element(Element {
-            name: "foo",
-            meta: Box::from(StubMeta),
+            directive: Box::from(Stub),
             children: vec![
                 Node::Text("Hello"),
                 Node::Element(Element {
-                    name: "bar",
-                    meta: Box::from(StubMeta),
+                    directive: Box::from(Stub),
                     children: vec![],
                 }),
                 Node::Text(" "),
                 Node::Element(Element {
-                    name: "bar",
-                    meta: Box::from(StubMeta),
+                    directive: Box::from(Stub),
                     children: vec![Node::Text("world")],
                 }),
                 Node::Text("!"),

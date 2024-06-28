@@ -22,26 +22,26 @@ pub struct MetaSyntax<'i> {
 }
 
 pub struct Yfelo {
-    dirs: HashMap<String, Box<dyn Directive>>,
+    dirs: HashMap<String, Box<dyn DirectiveConstructor>>,
     langs: HashMap<String, Box<dyn Language>>,
 }
 
 impl Yfelo {
     pub fn new() -> Self {
-        let mut dirs: HashMap<String, Box<dyn Directive>> = HashMap::new();
-        dirs.insert("if".into(), Box::new(If));
-        dirs.insert("for".into(), Box::new(For));
+        let mut dirs: HashMap<String, Box<dyn DirectiveConstructor>> = HashMap::new();
+        dirs.insert("if".into(), Box::new(Constructor::<If>::new()));
+        dirs.insert("for".into(), Box::new(Constructor::<For>::new()));
         Self {
             dirs,
             langs: HashMap::new(),
         }
     }
 
-    pub fn add_directive<T: Into<String>>(&mut self, name: T, dir: Box<dyn Directive>) {
-        self.dirs.insert(name.into(), dir);
+    pub fn add_directive<D: Directive + 'static>(&mut self, name: impl Into<String>) {
+        self.dirs.insert(name.into(), Box::new(Constructor::<D>::new()));
     }
 
-    pub fn add_language<T: Into<String>>(&mut self, name: T, lang: Box<dyn Language>) {
+    pub fn add_language(&mut self, name: impl Into<String>, lang: Box<dyn Language>) {
         self.langs.insert(name.into(), lang);
     }
 
@@ -51,7 +51,7 @@ impl Yfelo {
     }
 
     pub fn render<'i>(&'i self, nodes: &'i Vec<Node<'i>>, lang: &'i dyn Language, ctx: &'i dyn Context) -> Result<String, Box<dyn RuntimeError>> {
-        let writer = Writer::new(lang, &self.dirs);
+        let writer = Writer::new(lang);
         writer.run(nodes, ctx)
     }
 
