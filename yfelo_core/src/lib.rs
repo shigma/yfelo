@@ -2,6 +2,7 @@
 extern crate dyn_derive;
 
 use std::collections::HashMap;
+use std::marker::PhantomData;
 
 use builtin::{For, If};
 use reader::Reader;
@@ -22,23 +23,23 @@ pub struct MetaSyntax<'i> {
 }
 
 pub struct Yfelo {
-    dirs: HashMap<String, Box<dyn DirectiveConstructor>>,
+    dirs: HashMap<String, Box<dyn Directive>>,
     langs: HashMap<String, Box<dyn Language>>,
 }
 
 impl Yfelo {
     pub fn new() -> Self {
-        let mut dirs: HashMap<String, Box<dyn DirectiveConstructor>> = HashMap::new();
-        dirs.insert("if".into(), Box::new(Constructor::<If>::new()));
-        dirs.insert("for".into(), Box::new(Constructor::<For>::new()));
+        let mut dirs: HashMap<String, Box<dyn Directive>> = HashMap::new();
+        dirs.insert("if".into(), Box::new(PhantomData::<If>));
+        dirs.insert("for".into(), Box::new(PhantomData::<For>));
         Self {
             dirs,
             langs: HashMap::new(),
         }
     }
 
-    pub fn add_directive<D: Directive + 'static>(&mut self, name: impl Into<String>) {
-        self.dirs.insert(name.into(), Box::new(Constructor::<D>::new()));
+    pub fn add_directive<D: DirectiveConstructor + 'static>(&mut self, name: impl Into<String>) {
+        self.dirs.insert(name.into(), Box::new(PhantomData::<D>));
     }
 
     pub fn add_language(&mut self, name: impl Into<String>, lang: Box<dyn Language>) {
@@ -56,7 +57,6 @@ impl Yfelo {
     }
 
     pub fn run(&self, source: &str, lang: &dyn Language, meta: &MetaSyntax, ctx: &dyn Context) -> Result<String, Error> {
-        // let lang = self.langs.get(lang_name).unwrap().as_ref();
         let nodes = self.parse(source, lang, meta).map_err(|e| Error::Syntax(e))?;
         self.render(&nodes, lang, ctx).map_err(|e| Error::Runtime(e))
     }

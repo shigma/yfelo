@@ -1,15 +1,15 @@
 use std::fmt::Debug;
 
-use crate::directive::{Directive, Node};
+use crate::directive::{DirectiveConstructor, Node};
 use crate::language::{Context, Expr, Pattern, RuntimeError, SyntaxError};
-use crate::reader::Reader;
+use crate::reader::{TagInfo, Reader};
 use crate::writer::Writer;
 
 #[derive(Debug, PartialEq)]
 pub struct Stub;
 
-impl Directive for Stub {
-    fn open(reader: &mut Reader) -> Result<Self, SyntaxError> {
+impl DirectiveConstructor for Stub {
+    fn open(reader: &mut Reader, _: &TagInfo) -> Result<Self, SyntaxError> {
         reader.tag_close()?;
         Ok(Self)
     }
@@ -24,8 +24,9 @@ pub struct If {
     expr: Box<dyn Expr>,
 }
 
-impl Directive for If {
-    fn open(reader: &mut Reader) -> Result<Self, SyntaxError> {
+impl DirectiveConstructor for If {
+    fn open(reader: &mut Reader, info: &TagInfo) -> Result<Self, SyntaxError> {
+        info.expect_children()?;
         let expr = reader.parse_expr()?;
         reader.tag_close()?;
         Ok(Self { expr })
@@ -46,8 +47,9 @@ pub struct For {
     expr: Box<dyn Expr>,
 }
 
-impl Directive for For {
-    fn open(reader: &mut Reader) -> Result<Self, SyntaxError> {
+impl DirectiveConstructor for For {
+    fn open(reader: &mut Reader, info: &TagInfo) -> Result<Self, SyntaxError> {
+        info.expect_children()?;
         let vpat = reader.parse_pattern()?;
         let kpat = match reader.parse_punct(",") {
             Ok(_) => Some(reader.parse_pattern()?),
