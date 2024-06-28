@@ -16,7 +16,7 @@ pub fn basic_1() {
     let (y, l) = (YFELO, LANG);
     let mut ctx: Box<dyn yfelo::Context> = Box::new(Context::new());
     ctx.bind(&Pattern::from("world"), Box::new(Value::from("yfelo"))).unwrap();
-    let output = y.run("Hello, {world}!", l.as_ref(), &META_SYNTAX, ctx.as_ref()).unwrap();
+    let output = y.run("Hello, {world}!", l.as_ref(), &META_SYNTAX, ctx.as_mut()).unwrap();
     assert_eq!(output, "Hello, yfelo!");
 }
 
@@ -26,6 +26,6 @@ pub fn if_1() {
     let mut ctx: Box<dyn yfelo::Context> = Box::new(Context::new());
     ctx.bind(&Pattern::from("foo"), Box::new(Value::from(true))).unwrap();
     ctx.bind(&Pattern::from("bar"), Box::new(Value::from(false))).unwrap();
-    let output = y.run("{#if foo}Hello{/if}, {#if bar}world{/if}!", l.as_ref(), &META_SYNTAX, ctx.as_ref()).unwrap();
+    let output = y.run("{#if foo}Hello{/if}, {#if bar}world{/if}!", l.as_ref(), &META_SYNTAX, ctx.as_mut()).unwrap();
     assert_eq!(output, "Hello, !");
 }

@@ -14,7 +14,7 @@ impl<'i> Writer<'i> {
         }
     }
 
-    pub fn render(&mut self, nodes: &'i Vec<Node<'i>>, ctx: &dyn Context) -> Result<(), Box<dyn RuntimeError>> {
+    pub fn render(&mut self, nodes: &'i Vec<Node<'i>>, ctx: &mut dyn Context) -> Result<(), Box<dyn RuntimeError>> {
         for node in nodes {
             match node {
                 Node::Text(text) => self.output += text,
@@ -27,7 +27,7 @@ impl<'i> Writer<'i> {
         Ok(())
     }
 
-    pub fn run(mut self, nodes: &'i Vec<Node<'i>>, ctx: &dyn Context) -> Result<String, Box<dyn RuntimeError>> {
+    pub fn run(mut self, nodes: &'i Vec<Node<'i>>, ctx: &mut dyn Context) -> Result<String, Box<dyn RuntimeError>> {
         self.render(nodes, ctx)?;
         Ok(self.output)
     }
