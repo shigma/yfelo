@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use crate::directive::{DirectiveConstructor, Node};
+use crate::directive::{DirectiveStatic as Directive, Node};
 use crate::language::{Context, Expr, Pattern, RuntimeError, SyntaxError};
 use crate::reader::{Reader, TagInfo};
 use crate::writer::Writer;
@@ -21,7 +21,7 @@ use crate::writer::Writer;
 #[derive(Debug, PartialEq)]
 pub struct Stub;
 
-impl DirectiveConstructor for Stub {
+impl Directive for Stub {
     fn open(_: &mut Reader, _: &TagInfo) -> Result<Self, SyntaxError> {
         Ok(Self)
     }
@@ -44,7 +44,7 @@ pub struct If {
     expr: Box<dyn Expr>,
 }
 
-impl DirectiveConstructor for If {
+impl Directive for If {
     fn open(reader: &mut Reader, info: &TagInfo) -> Result<Self, SyntaxError> {
         info.expect_children()?;
         let expr = reader.parse_expr()?;
@@ -52,7 +52,7 @@ impl DirectiveConstructor for If {
     }
 
     fn render<'i>(&self, writer: &mut Writer<'i>, children: &'i Vec<Node>, ctx: &mut dyn Context) -> Result<(), Box<dyn RuntimeError>> {
-        if ctx.eval(self.expr.as_ref())?.as_bool()? {
+        if ctx.eval(&self.expr)?.as_bool()? {
             return writer.render(children, ctx);
         }
         Ok(())
@@ -74,7 +74,7 @@ pub struct For {
     expr: Box<dyn Expr>,
 }
 
-impl DirectiveConstructor for For {
+impl Directive for For {
     fn open(reader: &mut Reader, info: &TagInfo) -> Result<Self, SyntaxError> {
         info.expect_children()?;
         let vpat = reader.parse_pattern()?;
@@ -88,12 +88,12 @@ impl DirectiveConstructor for For {
     }
 
     fn render<'i>(&self, writer: &mut Writer<'i>, children: &'i Vec<Node>, ctx: &mut dyn Context) -> Result<(), Box<dyn RuntimeError>> {
-        let entries = ctx.eval(self.expr.as_ref())?.as_entries()?;
+        let entries = ctx.eval(&self.expr)?.as_entries()?;
         for entry in entries {
             let mut inner = ctx.fork();
-            inner.bind(self.vpat.as_ref(), entry.0)?;
+            inner.bind(&self.vpat, entry.0)?;
             if let Some(kpat) = &self.kpat {
-                inner.bind(kpat.as_ref(), entry.1)?;
+                inner.bind(&kpat, entry.1)?;
             }
             writer.render(children, inner.as_mut())?;
         }
@@ -125,7 +125,7 @@ pub struct Def {
     expr: Option<Box<dyn Expr>>,
 }
 
-impl DirectiveConstructor for Def {
+impl Directive for Def {
     fn open(reader: &mut Reader, info: &TagInfo) -> Result<Self, SyntaxError> {
         let pat = reader.parse_pattern()?;
         let params = if let Ok(_) = reader.parse_punct("(") {
@@ -160,8 +160,8 @@ impl DirectiveConstructor for Def {
             todo!();
         } else {
             if let Some(expr) = &self.expr {
-                let value = ctx.eval(expr.as_ref())?;
-                ctx.bind(self.pat.as_ref(), value)?;
+                let value = ctx.eval(expr)?;
+                ctx.bind(&self.pat, value)?;
             } else {
                 todo!();
             }

@@ -2,7 +2,9 @@
 name = "yfelo_core"
 version = "0.1.0"
 edition = "2021"
+description = "core library for Yfelo template engine"
+license = "MIT"
 
 [dependencies]
-dyn_std = "0.1.1"
-dyn_derive = "0.1.2"
+dyn_std = "0.2.2"
+dyn_derive = "0.2.3"

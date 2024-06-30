@@ -18,7 +18,7 @@ impl<'i> Writer<'i> {
         for node in nodes {
             match node {
                 Node::Text(text) => self.output += text,
-                Node::Expr(expr) => self.output += ctx.eval(expr.as_ref())?.to_string()?.as_str(),
+                Node::Expr(expr) => self.output += ctx.eval(expr)?.to_string()?.as_str(),
                 Node::Element(element) => {
                     element.directive.render(self, &element.children, ctx)?;
                 },

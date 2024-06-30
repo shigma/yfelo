@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use dyn_std::Instance;
+
 use crate::builtin::Stub;
 use crate::directive::Directive;
 use crate::language::{Expr, Language, Pattern, SyntaxError};
@@ -52,7 +54,7 @@ impl<'i> Reader<'i> {
             lang,
             dirs,
             stack: vec![(Element {
-                directive: Box::new(Stub),
+                directive: Box::new(Instance::new(Stub)),
                 children: vec![],
             }, TagInfo {
                 name: "",

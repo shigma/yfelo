@@ -5,7 +5,7 @@ use dyn_std::Downcast;
 use pest::iterators::{Pair, Pairs};
 use pest::Parser;
 
-use super::{SyntaxError, Value as _};
+use super::{SyntaxError, ValueStatic as _, constructor};
 
 #[derive(Parser)]
 #[grammar = "default.pest"]
@@ -13,12 +13,12 @@ struct DefaultParser;
 
 pub struct Language;
 
-impl super::Language for Language {
-    fn parse_expr(&self, input: &str) -> Result<(Box<dyn super::Expr>, usize), SyntaxError> {
+impl constructor::Language<Expr, Pattern> for Language {
+    fn parse_expr(input: &str) -> Result<(Expr, usize), SyntaxError> {
         match DefaultParser::parse(Rule::expr, input) {
             Ok(pairs) => {
                 let len = pairs.as_str().len();
-                Ok((Box::new(Expr::from(pairs.into_iter().next().unwrap())), len))
+                Ok((Expr::from(pairs.into_iter().next().unwrap()), len))
             },
             Err(e) => Err(SyntaxError {
                 message: e.to_string(),
@@ -27,11 +27,11 @@ impl super::Language for Language {
         }
     }
 
-    fn parse_pattern(&self, input: &str) -> Result<(Box<dyn super::Pattern>, usize), SyntaxError> {
+    fn parse_pattern(input: &str) -> Result<(Pattern, usize), SyntaxError> {
         match DefaultParser::parse(Rule::pattern, input) {
             Ok(pairs) => {
                 let len = pairs.as_str().len();
-                Ok((Box::new(Pattern::from(pairs.into_iter().next().unwrap())), len))
+                Ok((Pattern::from(pairs.into_iter().next().unwrap()), len))
             },
             Err(e) => return Err(SyntaxError {
                 message: e.to_string(),
@@ -113,7 +113,7 @@ pub enum Expr {
     Binary(Box<Expr>, BinaryOp, Box<Expr>),
 }
 
-impl super::Expr for Expr {}
+impl constructor::Expr for Expr {}
 
 macro_rules! left_assoc {
     ($curr:ident, $inner:ident) => {
@@ -227,7 +227,7 @@ pub enum Pattern {
     Ident(String),
 }
 
-impl super::Pattern for Pattern {}
+impl constructor::Pattern for Pattern {}
 
 impl Pattern {
     fn from(pair: Pair<Rule>) -> Self {
@@ -256,7 +256,7 @@ impl Context {
         }
     }
 
-    fn _eval(&self, expr: &Expr) -> Result<Value, Box<dyn super::RuntimeError>> {
+    fn _eval(&self, expr: &Expr) -> Result<Value, RuntimeError> {
         Ok(match expr {
             Expr::Number(n) => Value::Number(n.clone()),
             Expr::String(s) => Value::String(s.clone()),
@@ -330,24 +330,22 @@ impl Context {
     }
 }
 
-impl super::Context for Context {
-    fn eval<'i>(&'i self, expr: &'i dyn super::Expr) -> Result<Box<dyn super::Value>, Box<dyn super::RuntimeError>> {
+impl constructor::Context<Expr, Pattern, Value, RuntimeError> for Context {
+    fn eval<'i>(&'i self, expr: &'i Expr) -> Result<Value, RuntimeError> {
         let expr = expr.downcast_ref::<Expr>().unwrap();
-        Ok(Box::new(self._eval(expr)?))
+        Ok(self._eval(expr)?)
     }
 
-    fn fork(&self) -> Box<dyn super::Context> {
-        Box::new(Context {
+    fn fork(&self) -> Self {
+        Context {
             inner: self.inner.clone(),
-        })
+        }
     }
 
-    fn bind(&mut self, pattern: &dyn super::Pattern, value: Box<dyn super::Value>) -> Result<(), Box<dyn super::RuntimeError>> {
+    fn bind(&mut self, pattern: &Pattern, value: Value) -> Result<(), RuntimeError> {
         match pattern.downcast_ref::<Pattern>().unwrap() {
             Pattern::Ident(ident) => {
-                // TODO: use `.downcast()` directly
-                // TODO: handle errors
-                self.inner[ident] = *value.as_any_box().downcast().unwrap();
+                self.inner[ident] = value;
                 Ok(())
             },
         }
@@ -365,18 +363,18 @@ pub enum Value {
 }
 
 impl Value {
-    pub fn as_number(&self) -> Result<f64, Box<dyn super::RuntimeError>> {
+    pub fn as_number(&self) -> Result<f64, RuntimeError> {
         match &self {
             Value::Number(n) => Ok(*n),
             Value::Bool(b) => Ok(if *b { 1. } else { 0. }),
-            _ => Err(Box::new(RuntimeError {})),
+            _ => Err(RuntimeError {}),
         }
     }
 
-    pub fn as_string(&self) -> Result<&String, Box<dyn super::RuntimeError>> {
+    pub fn as_string(&self) -> Result<&String, RuntimeError> {
         match &self {
             Value::String(s) => Ok(s),
-            _ => Err(Box::new(RuntimeError {})),
+            _ => Err(RuntimeError {}),
         }
     }
 }
@@ -492,8 +490,8 @@ impl fmt::Display for Value {
     }
 }
 
-impl super::Value for Value {
-    fn to_string(&self) -> Result<String, Box<dyn super::RuntimeError>> {
+impl constructor::Value<RuntimeError> for Value {
+    fn to_string(&self) -> Result<String, RuntimeError> {
         match &self {
             Value::Null => Ok("".to_string()),
             // TODO partial object
@@ -501,7 +499,7 @@ impl super::Value for Value {
         }
     }
 
-    fn as_bool(&self) -> Result<bool, Box<dyn super::RuntimeError>> {
+    fn as_bool(&self) -> Result<bool, RuntimeError> {
         match &self {
             Value::Null => Ok(false),
             Value::Bool(b) => Ok(*b),
@@ -512,24 +510,24 @@ impl super::Value for Value {
         }
     }
 
-    fn as_entries(&self) -> Result<Vec<(Box<dyn super::Value>, Box<dyn super::Value>)>, Box<dyn super::RuntimeError>> {
+    fn as_entries(&self) -> Result<Vec<(Self, Self)>, RuntimeError> {
         match &self {
             Value::Array(vec) => Ok(vec.iter().enumerate().map(|(k, v)| {
-                let value = Box::new(v.clone()) as Box<dyn super::Value>;
-                let key = Box::new(Value::Number(k as f64)) as Box<dyn super::Value>;
+                let value = v.clone();
+                let key = Value::Number(k as f64);
                 (value, key)
             }).collect()),
             Value::Object(map) => Ok(map.iter().map(|(k, v)| {
-                let value = Box::new(v.clone()) as Box<dyn super::Value>;
-                let key = Box::new(Value::String(k.clone())) as Box<dyn super::Value>;
+                let value = v.clone();
+                let key = Value::String(k.clone());
                 (value, key)
             }).collect()),
-            _ => Err(Box::new(RuntimeError {})),
+            _ => Err(RuntimeError {}),
         }
     }
 }
 
 #[derive(Debug, Clone)]
-struct RuntimeError {}
+pub struct RuntimeError {}
 
-impl super::RuntimeError for RuntimeError {}
+impl constructor::RuntimeError for RuntimeError {}

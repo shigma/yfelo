@@ -3,15 +3,6 @@
 version = 3
 
 [[package]]
-name = "aho-corasick"
-version = "1.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e60d3430d3a69478ad0993f19238d2df97c507009a52b3c10addcd7f6bcb916"
-dependencies = [
- "memchr",
-]
-
-[[package]]
 name = "anstream"
 version = "0.6.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -152,9 +143,9 @@ dependencies = [
 
 [[package]]
 name = "dyn_derive"
-version = "0.1.2"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f567bfcf728d205915cd0d3c1da5f5594cce28f26bf0c6de5d7435c3e1314564"
+checksum = "5163f69f7453d8abc320c1ab683c14941bc847bf686fce54b48080146954f663"
 dependencies = [
  "dyn_std",
  "proc-macro2",
@@ -164,9 +155,9 @@ dependencies = [
 
 [[package]]
 name = "dyn_std"
-version = "0.1.1"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e06bf8c9b5a05eaed461a405ae6d5e8c7cc35147289dd0723d525fb257848902"
+checksum = "99d6e821aef49ae9e133dea4a7b7ae47a5cc2b2d402cc7c5eaa84292936d1ce1"
 
 [[package]]
 name = "generic-array"
@@ -286,35 +277,6 @@ checksum = "0fa76aaf39101c457836aec0ce2316dbdc3ab723cdda1c6bd4e6ad4208acaca7"
 dependencies = [
  "proc-macro2",
 ]
-
-[[package]]
-name = "regex"
-version = "1.10.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b91213439dad192326a0d7c6ee3955910425f441d7038e0d6933b0aec5c4517f"
-dependencies = [
- "aho-corasick",
- "memchr",
- "regex-automata",
- "regex-syntax",
-]
-
-[[package]]
-name = "regex-automata"
-version = "0.4.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "38caf58cc5ef2fed281f89292ef23f6365465ed9a41b7a7754eb4e26496c92df"
-dependencies = [
- "aho-corasick",
- "memchr",
- "regex-syntax",
-]
-
-[[package]]
-name = "regex-syntax"
-version = "0.8.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a66a03ae7c801facd77a29370b4faec201768915ac14a721ba36f20bc9c209b"
 
 [[package]]
 name = "ryu"
@@ -516,7 +478,6 @@ dependencies = [
  "pest_derive",
  "pest_meta",
  "pest_vm",
- "regex",
  "serde",
  "serde_json",
  "yfelo_core",

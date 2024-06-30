@@ -1,17 +1,20 @@
+use std::marker::PhantomData;
+
+use dyn_std::Instance;
 use once_cell::sync::Lazy;
 use yfelo::builtin::Stub;
-use yfelo::default::{BinaryOp, Expr, Language};
+use yfelo::default::{BinaryOp, Expr, Language, Pattern};
 use yfelo::{Element, MetaSyntax, Node, Yfelo};
 
 const YFELO: Lazy<Yfelo> = Lazy::new(|| {
     let mut yfelo = Yfelo::new();
     yfelo.add_directive::<Stub>("foo");
     yfelo.add_directive::<Stub>("bar");
-    yfelo.add_language("default", Box::new(Language));
+    yfelo.add_language::<Expr, Pattern, Language>("default");
     yfelo
 });
 
-const LANG: Lazy<Box<dyn yfelo::Language>> = Lazy::new(|| Box::new(Language));
+const LANG: Lazy<Box<dyn yfelo::Language>> = Lazy::new(|| Box::new(PhantomData::<(Language, Expr, Pattern)>));
 
 const META_SYNTAX: MetaSyntax = MetaSyntax {
     left: "{",
@@ -42,7 +45,7 @@ pub fn basic_1() {
     let nodes = y.parse("(Hello) {world}!", l.as_ref(), &META_SYNTAX).unwrap();
     assert_eq!(nodes, vec![
         Node::Text("(Hello) "),
-        Node::Expr(Box::from(ident!("world"))),
+        Node::Expr(Box::from(Instance::new(ident!("world")))),
         Node::Text("!"),
     ]);
 }
@@ -52,7 +55,7 @@ pub fn basic_2() {
     let (y, l) = (YFELO, LANG);
     let nodes = y.parse("{world}", l.as_ref(), &META_SYNTAX).unwrap();
     assert_eq!(nodes, vec![
-        Node::Expr(Box::from(ident!("world"))),
+        Node::Expr(Box::from(Instance::new(ident!("world")))),
     ]);
 }
 
@@ -61,10 +64,10 @@ pub fn basic_3() {
     let (y, l) = (YFELO, LANG);
     let nodes = y.parse("{w(or[ld])}", l.as_ref(), &META_SYNTAX).unwrap();
     assert_eq!(nodes, vec![
-        Node::Expr(Box::from(apply!(
+        Node::Expr(Box::from(Instance::new(apply!(
             ident!("w"),
             binary!(ident!("or"), Index, ident!("ld")),
-        ))),
+        )))),
     ]);
 }
 
@@ -77,11 +80,11 @@ pub fn basic_4() {
     };
     let nodes = y.parse("[w[or][ld]]!", l.as_ref(), &meta).unwrap();
     assert_eq!(nodes, vec![
-        Node::Expr(Box::from(binary!(
+        Node::Expr(Box::from(Instance::new(binary!(
             binary!(ident!("w"), Index, ident!("or")),
             Index,
             ident!("ld"),
-        ))),
+        )))),
         Node::Text("!"),
     ]);
 }
@@ -124,12 +127,12 @@ pub fn tag_1() {
     let nodes = y.parse("{#foo}Hello{/foo} {#bar}world{/bar}!", l.as_ref(), &META_SYNTAX).unwrap();
     assert_eq!(nodes, vec![
         Node::Element(Element {
-            directive: Box::from(Stub),
+            directive: Box::new(Instance::new(Stub)),
             children: vec![Node::Text("Hello")],
         }),
         Node::Text(" "),
         Node::Element(Element {
-            directive: Box::from(Stub),
+            directive: Box::new(Instance::new(Stub)),
             children: vec![Node::Text("world")],
         }),
         Node::Text("!"),
@@ -142,16 +145,16 @@ pub fn tag_2() {
     let nodes = y.parse("{#foo}Hello{@bar} {#bar}world{/bar}!{/foo}", l.as_ref(), &META_SYNTAX).unwrap();
     assert_eq!(nodes, vec![
         Node::Element(Element {
-            directive: Box::from(Stub),
+            directive: Box::new(Instance::new(Stub)),
             children: vec![
                 Node::Text("Hello"),
                 Node::Element(Element {
-                    directive: Box::from(Stub),
+                    directive: Box::new(Instance::new(Stub)),
                     children: vec![],
                 }),
                 Node::Text(" "),
                 Node::Element(Element {
-                    directive: Box::from(Stub),
+                    directive: Box::new(Instance::new(Stub)),
                     children: vec![Node::Text("world")],
                 }),
                 Node::Text("!"),

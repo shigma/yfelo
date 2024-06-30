@@ -12,6 +12,7 @@ pub use directive::*;
 pub use language::*;
 
 pub mod builtin;
+pub mod constructor;
 pub mod directive;
 pub mod language;
 pub mod reader;
@@ -38,12 +39,12 @@ impl Yfelo {
         }
     }
 
-    pub fn add_directive<D: DirectiveConstructor + 'static>(&mut self, name: impl Into<String>) {
+    pub fn add_directive<D: DirectiveStatic>(&mut self, name: impl Into<String>) {
         self.dirs.insert(name.into(), Box::new(PhantomData::<D>));
     }
 
-    pub fn add_language(&mut self, name: impl Into<String>, lang: Box<dyn Language>) {
-        self.langs.insert(name.into(), lang);
+    pub fn add_language<E: ExprStatic, P: PatternStatic, T: LanguageStatic<E, P>>(&mut self, name: impl Into<String>) {
+        self.langs.insert(name.into(), Box::new(PhantomData::<(T, E, P)>));
     }
 
     pub fn parse<'i>(&'i self, source: &'i str, lang: &'i dyn Language, meta: &'i MetaSyntax) -> Result<Vec<Node<'i>>, SyntaxError> {

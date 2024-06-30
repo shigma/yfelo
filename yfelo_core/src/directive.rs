@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use dyn_std::Downcast;
+use dyn_std::Instance;
 
 use crate::language::{Context, Expr, RuntimeError, SyntaxError};
 use crate::reader::{TagInfo, Reader};
@@ -20,47 +20,27 @@ pub enum Node<'i> {
     Element(Element<'i>),
 }
 
-pub trait DirectiveConstructor: Sized + Debug + PartialEq {
+#[dyn_trait]
+pub trait Directive: Sized + Debug + PartialEq {
     fn open(reader: &mut Reader, info: &TagInfo) -> Result<Self, SyntaxError>;
 
-    fn close(&mut self, _: &mut Reader, _: &TagInfo) -> Result<(), SyntaxError> {
+    fn close(&mut self, _reader: &mut Reader, _info: &TagInfo) -> Result<(), SyntaxError> {
         Ok(())
     }
 
     fn render<'i>(&self, writer: &mut Writer<'i>, children: &'i Vec<Node>, ctx: &mut dyn Context) -> Result<(), Box<dyn RuntimeError>>;
 }
 
-#[dyn_trait]
-pub trait Directive: Debug + PartialEq {
-    fn open(&self, reader: &mut Reader, info: &TagInfo) -> Result<Box<dyn Directive>, SyntaxError>;
-    fn close(&mut self, reader: &mut Reader, info: &TagInfo) -> Result<(), SyntaxError>;
-    fn render<'i>(&self, writer: &mut Writer<'i>, children: &'i Vec<Node>, ctx: &mut dyn Context) -> Result<(), Box<dyn RuntimeError>>;
-}
-
-impl<T: 'static + DirectiveConstructor> Directive for T {
+impl<T: 'static + DirectiveStatic> Directive for PhantomData<T> {
     fn open(&self, reader: &mut Reader, info: &TagInfo) -> Result<Box<dyn Directive>, SyntaxError> {
-        Ok(Box::new(<T as DirectiveConstructor>::open(reader, info)?))
+        Ok(Box::new(Instance::new(<T as DirectiveStatic>::open(reader, info)?)))
     }
 
-    fn close(&mut self, reader: &mut Reader, info: &TagInfo) -> Result<(), SyntaxError> {
-        <T as DirectiveConstructor>::close(self.downcast_mut().unwrap(), reader, info)
+    fn close(&mut self, _: &mut Reader, _: &TagInfo) -> Result<(), SyntaxError> {
+        unreachable!("unexpected invocation of non-dispatchable function")
     }
 
-    fn render<'i>(&self, writer: &mut Writer<'i>, children: &'i Vec<Node>, ctx: &mut dyn Context) -> Result<(), Box<dyn RuntimeError>> {
-        <T as DirectiveConstructor>::render(self.downcast_ref().unwrap(), writer, children, ctx)
-    }
-}
-
-impl<T: 'static + DirectiveConstructor> Directive for PhantomData<T> {
-    fn open(&self, reader: &mut Reader, info: &TagInfo) -> Result<Box<dyn Directive>, SyntaxError> {
-        Ok(Box::new(<T as DirectiveConstructor>::open(reader, info)?))
-    }
-
-    fn close(&mut self, reader: &mut Reader, info: &TagInfo) -> Result<(), SyntaxError> {
-        <T as DirectiveConstructor>::close(self.downcast_mut().unwrap(), reader, info)
-    }
-
-    fn render<'i>(&self, writer: &mut Writer<'i>, children: &'i Vec<Node>, ctx: &mut dyn Context) -> Result<(), Box<dyn RuntimeError>> {
-        <T as DirectiveConstructor>::render(self.downcast_ref().unwrap(), writer, children, ctx)
+    fn render<'i>(&self, _: &mut Writer<'i>, _: &'i Vec<Node>, _: &mut dyn Context) -> Result<(), Box<dyn RuntimeError>> {
+        unreachable!("unexpected invocation of non-dispatchable function")
     }
 }
