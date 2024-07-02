@@ -21,7 +21,7 @@ pub enum Node<'i> {
 }
 
 #[dyn_trait]
-pub trait Directive: Sized + Debug + PartialEq {
+pub trait Directive: Debug + PartialEq {
     fn open(reader: &mut Reader, info: &TagInfo) -> Result<Self, SyntaxError>;
 
     fn close(&mut self, _reader: &mut Reader, _info: &TagInfo) -> Result<(), SyntaxError> {

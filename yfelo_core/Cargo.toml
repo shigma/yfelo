@@ -6,5 +6,5 @@ description = "core library for Yfelo template engine"
 license = "MIT"
 
 [dependencies]
-dyn_std = "0.2.2"
-dyn_derive = "0.2.3"
+dyn_std = "0.2.3"
+dyn_derive = "0.2.5"
