@@ -26,7 +26,7 @@ impl Directive for Stub {
         Ok(Self)
     }
 
-    fn render<'i>(&self, writer: &mut Writer<'i>, children: &'i Vec<Node>, ctx: &mut dyn Context) -> Result<(), Box<dyn RuntimeError>> {
+    fn render<'i>(&self, writer: &Writer<'i>, children: &'i Vec<Node>, ctx: &mut dyn Context) -> Result<String, Box<dyn RuntimeError>> {
         writer.render(children, ctx)
     }
 }
@@ -51,11 +51,11 @@ impl Directive for If {
         Ok(Self { expr })
     }
 
-    fn render<'i>(&self, writer: &mut Writer<'i>, children: &'i Vec<Node>, ctx: &mut dyn Context) -> Result<(), Box<dyn RuntimeError>> {
+    fn render<'i>(&self, writer: &Writer<'i>, children: &'i Vec<Node>, ctx: &mut dyn Context) -> Result<String, Box<dyn RuntimeError>> {
         if ctx.eval(&self.expr)?.as_bool()? {
             return writer.render(children, ctx);
         }
-        Ok(())
+        Ok(String::new())
     }
 }
 
@@ -87,17 +87,18 @@ impl Directive for For {
         Ok(Self { vpat, kpat, expr })
     }
 
-    fn render<'i>(&self, writer: &mut Writer<'i>, children: &'i Vec<Node>, ctx: &mut dyn Context) -> Result<(), Box<dyn RuntimeError>> {
+    fn render<'i>(&self, writer: &Writer<'i>, children: &'i Vec<Node>, ctx: &mut dyn Context) -> Result<String, Box<dyn RuntimeError>> {
         let entries = ctx.eval(&self.expr)?.as_entries()?;
+        let mut output = String::new();
         for entry in entries {
             let mut inner = ctx.fork();
             inner.bind(&self.vpat, entry.0)?;
             if let Some(kpat) = &self.kpat {
                 inner.bind(&kpat, entry.1)?;
             }
-            writer.render(children, inner.as_mut())?;
+            output += &writer.render(children, inner.as_mut())?;
         }
-        Ok(())
+        Ok(output)
     }
 }
 
@@ -155,7 +156,7 @@ impl Directive for Def {
         Ok(Self { pat, params, expr })
     }
 
-    fn render<'i>(&self, _: &mut Writer<'i>, _: &'i Vec<Node>, ctx: &mut dyn Context) -> Result<(), Box<dyn RuntimeError>> {
+    fn render<'i>(&self, writer: &Writer<'i>, nodes: &'i Vec<Node>, ctx: &mut dyn Context) -> Result<String, Box<dyn RuntimeError>> {
         if let Some(_) = &self.params {
             todo!();
         } else {
@@ -163,9 +164,11 @@ impl Directive for Def {
                 let value = ctx.eval(expr)?;
                 ctx.bind(&self.pat, value)?;
             } else {
-                todo!();
+                let output = writer.render(nodes, ctx)?;
+                let value = ctx.value_from_string(output)?;
+                ctx.bind(&self.pat, value)?;
             }
         }
-        Ok(())
+        Ok(String::new())
     }
 }

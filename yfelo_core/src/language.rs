@@ -27,10 +27,11 @@ pub trait Expr: Debug + Clone + PartialEq {}
 pub trait Pattern: Debug + Clone + PartialEq {}
 
 #[dyn_trait]
-pub trait Context<E: Expr, P: Pattern, V: Value<R>, R: RuntimeError> {
+pub trait Context<E: Expr, P: Pattern, V: Value<R>, R: RuntimeError>: Debug + Clone {
     fn eval(&self, expr: &E) -> Result<V, R>;
     fn fork(&self) -> Self;
     fn bind(&mut self, pattern: &P, value: V) -> Result<(), R>;
+    fn value_from_string(str: String) -> Result<V, R>;
 }
 
 #[dyn_trait]

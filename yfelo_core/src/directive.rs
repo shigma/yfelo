@@ -28,7 +28,7 @@ pub trait Directive: Debug + PartialEq {
         Ok(())
     }
 
-    fn render<'i>(&self, writer: &mut Writer<'i>, children: &'i Vec<Node>, ctx: &mut dyn Context) -> Result<(), Box<dyn RuntimeError>>;
+    fn render<'i>(&self, writer: &Writer<'i>, children: &'i Vec<Node>, ctx: &mut dyn Context) -> Result<String, Box<dyn RuntimeError>>;
 }
 
 impl<T: 'static + DirectiveStatic> Directive for PhantomData<T> {
@@ -40,7 +40,7 @@ impl<T: 'static + DirectiveStatic> Directive for PhantomData<T> {
         unreachable!("unexpected invocation of non-dispatchable function")
     }
 
-    fn render<'i>(&self, _: &mut Writer<'i>, _: &'i Vec<Node>, _: &mut dyn Context) -> Result<(), Box<dyn RuntimeError>> {
+    fn render<'i>(&self, _: &Writer<'i>, _: &'i Vec<Node>, _: &mut dyn Context) -> Result<String, Box<dyn RuntimeError>> {
         unreachable!("unexpected invocation of non-dispatchable function")
     }
 }

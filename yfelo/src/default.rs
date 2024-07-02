@@ -245,6 +245,7 @@ impl<T: Into<String>> From<T> for Pattern {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Context {
     inner: Value,
 }
@@ -349,6 +350,10 @@ impl constructor::Context<Expr, Pattern, Value, RuntimeError> for Context {
                 Ok(())
             },
         }
+    }
+
+    fn value_from_string(str: String) -> Result<Value, RuntimeError> {
+        Ok(Value::String(str))
     }
 }
 
