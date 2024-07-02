@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use dyn_std::Instance;
 use once_cell::sync::Lazy;
 use yfelo::{MetaSyntax, Yfelo};
-use yfelo::default::{Context, Expr, Language, Pattern, Value};
+use yfelo::default::{Context, Expr, Language, Pattern};
 
 const YFELO: Lazy<Yfelo> = Lazy::new(|| Yfelo::new());
 
@@ -18,9 +18,10 @@ const META_SYNTAX: MetaSyntax = MetaSyntax {
 pub fn basic_1() {
     let (y, l) = (YFELO, LANG);
     let mut ctx: Box<dyn yfelo::Context> = Box::new(Instance::new(Context::new()));
-    let world: Box<dyn yfelo::Pattern> = Box::new(Instance::new(Pattern::from("world")));
-    ctx.bind(&world, Box::new(Instance::new(Value::from("yfelo")))).unwrap();
-    let output = y.run("Hello, {world}!", l.as_ref(), &META_SYNTAX, ctx.as_mut()).unwrap();
+    let output = y.run("
+        {@def world = 'yfelo'}
+        Hello, {world}!
+    ", l.as_ref(), &META_SYNTAX, ctx.as_mut()).unwrap();
     assert_eq!(output, "Hello, yfelo!");
 }
 
@@ -28,12 +29,23 @@ pub fn basic_1() {
 pub fn if_1() {
     let (y, l) = (YFELO, LANG);
     let mut ctx: Box<dyn yfelo::Context> = Box::new(Instance::new(Context::new()));
-    let foo: Box<dyn yfelo::Pattern> = Box::new(Instance::new(Pattern::from("foo")));
-    let bar: Box<dyn yfelo::Pattern> = Box::new(Instance::new(Pattern::from("bar")));
-    ctx.bind(&foo, Box::new(Instance::new(Value::from(true)))).unwrap();
-    ctx.bind(&bar, Box::new(Instance::new(Value::from(false)))).unwrap();
     let output = y.run("
+        {@def foo = true}
+        {@def bar = false}
         {#if foo}Hello{/if}, {#if bar}world{/if}!
     ", l.as_ref(), &META_SYNTAX, ctx.as_mut()).unwrap();
     assert_eq!(output, "Hello, !");
+}
+
+#[test]
+pub fn def_1() {
+    let (y, l) = (YFELO, LANG);
+    let mut ctx: Box<dyn yfelo::Context> = Box::new(Instance::new(Context::new()));
+    let output = y.run("
+        {#def text}
+            Hello, world!
+        {/def}
+        {@apply text}
+    ", l.as_ref(), &META_SYNTAX, ctx.as_mut()).unwrap();
+    assert_eq!(output, "Hello, world!");
 }

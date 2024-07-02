@@ -174,7 +174,23 @@ impl Expr {
         let pair = pair.into_inner().next().unwrap();
         match pair.as_rule() {
             Rule::number => Expr::Number(pair.as_str().parse().unwrap()),
-            Rule::string => Expr::String(pair.as_str().to_string()),
+            Rule::string => {
+                let str = pair.as_str();
+                let mut str = &str[1..str.len() - 1];
+                let mut inner = String::new();
+                while let Some(i) = str.find('\\') {
+                    inner += &str[..i];
+                    inner.push(match str.chars().nth(i + 1).unwrap() {
+                        'n' => '\n',
+                        'r' => '\r',
+                        't' => '\t',
+                        c => c,
+                    });
+                    str = &str[i + 2..];
+                }
+                inner += str;
+                Expr::String(inner)
+            },
             Rule::ident => Expr::Ident(pair.as_str().to_string()),
             Rule::array => {
                 let pairs = pair.into_inner();
@@ -354,6 +370,10 @@ impl constructor::Context<Expr, Pattern, Value, RuntimeError> for Context {
 
     fn value_from_string(str: String) -> Result<Value, RuntimeError> {
         Ok(Value::String(str))
+    }
+
+    fn new_ident(name: &str) -> Result<Expr, RuntimeError> {
+        Ok(Expr::Ident(name.into()))
     }
 }
 

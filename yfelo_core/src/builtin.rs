@@ -172,3 +172,51 @@ impl Directive for Def {
         Ok(String::new())
     }
 }
+
+/// Application directive.
+/// 
+/// ### Example
+/// Apply function `NAME` with `PARAMS`.
+/// 
+/// ```yfelo
+/// {@apply NAME(PARAMS)}
+/// ```
+#[derive(Debug, PartialEq)]
+pub struct Apply {
+    name: String,
+    params: Option<Vec<Box<dyn Expr>>>,
+}
+
+impl Directive for Apply {
+    fn open(reader: &mut Reader, info: &TagInfo) -> Result<Self, SyntaxError> {
+        let name = reader.parse_ident()?.into();
+        let params = if let Ok(_) = reader.parse_punct("(") {
+            let mut params = vec![];
+            loop {
+                if let Ok(_) = reader.parse_punct(")") {
+                    break;
+                }
+                params.push(reader.parse_expr()?);
+                if let Ok(_) = reader.parse_punct(",") {
+                    continue;
+                }
+                reader.parse_punct(")")?;
+                break;
+            }
+            Some(params)
+        } else {
+            None
+        };
+        info.expect_empty()?;
+        Ok(Self { name, params })
+    }
+
+    fn render<'i>(&self, _: &Writer<'i>, _: &'i Vec<Node>, ctx: &mut dyn Context) -> Result<String, Box<dyn RuntimeError>> {
+        if let Some(_) = &self.params {
+            todo!();
+        } else {
+            let value = ctx.eval(&ctx.new_ident(&self.name)?)?;
+            Ok(value.to_string()?)
+        }
+    }
+}

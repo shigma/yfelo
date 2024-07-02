@@ -4,7 +4,7 @@ extern crate dyn_derive;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 
-use builtin::{For, If};
+use builtin::{Apply, Def, For, If};
 use reader::Reader;
 use writer::Writer;
 
@@ -31,6 +31,8 @@ pub struct Yfelo {
 impl Yfelo {
     pub fn new() -> Self {
         let mut dirs: HashMap<String, Box<dyn Directive>> = HashMap::new();
+        dirs.insert("apply".into(), Box::new(PhantomData::<Apply>));
+        dirs.insert("def".into(), Box::new(PhantomData::<Def>));
         dirs.insert("if".into(), Box::new(PhantomData::<If>));
         dirs.insert("for".into(), Box::new(PhantomData::<For>));
         Self {

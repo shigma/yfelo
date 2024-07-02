@@ -8,7 +8,9 @@ letter = _{ 'a'..'z' | 'A'..'Z' }
 digit = _{ '0'..'9' }
 ident = { (letter | "_") ~ (letter | digit | "_")* }
 number = { digit+ ~ ("." ~ digit+)? }
-string = { "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
+string = { string_single | string_double }
+string_double = _{ "\"" ~ (!("\"" | "\\") ~ ANY | "\\" ~ ANY)* ~ "\"" }
+string_single = _{ "'" ~ (!("'" | "\\") ~ ANY | "\\" ~ ANY)* ~ "'" }
 
 pattern = { ident }
 expr_list = _{ (expr ~ ",")* ~ expr? }

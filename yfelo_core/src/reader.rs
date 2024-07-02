@@ -116,6 +116,16 @@ impl<'i> Reader<'i> {
         Ok(expr)
     }
 
+    pub fn parse_ident(&mut self) -> Result<&'i str, SyntaxError> {
+        let pos = self.input
+            .find(|c: char| !c.is_ascii_alphanumeric())
+            .unwrap_or(self.input.len());
+        let ident = &self.input[..pos];
+        self.skip(pos);
+        self.trim_start();
+        Ok(ident)
+    }
+
     pub fn parse_punct(&mut self, punct: &str) -> Result<(), SyntaxError> {
         if self.input.starts_with(punct) {
             self.skip(punct.len());
@@ -154,11 +164,7 @@ impl<'i> Reader<'i> {
     }
 
     fn directive(&mut self, mark: char) -> Result<(), SyntaxError> {
-        let pos = self.input
-            .find(|c: char| !c.is_ascii_alphanumeric())
-            .unwrap_or(self.input.len());
-        let name = &self.input[..pos];
-        self.skip(pos);
+        let name = self.parse_ident()?;
         let range = (self.offset - name.len(), self.offset);
         let Some(directive) = self.dirs.get(name) else {
             return Err(SyntaxError {

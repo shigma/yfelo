@@ -32,6 +32,7 @@ pub trait Context<E: Expr, P: Pattern, V: Value<R>, R: RuntimeError>: Debug + Cl
     fn fork(&self) -> Self;
     fn bind(&mut self, pattern: &P, value: V) -> Result<(), R>;
     fn value_from_string(str: String) -> Result<V, R>;
+    fn new_ident(name: &str) -> Result<E, R>;
 }
 
 #[dyn_trait]
