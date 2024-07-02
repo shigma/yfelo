@@ -68,6 +68,29 @@ impl<'i> Reader<'i> {
        self.stack.last_mut().unwrap().0.children.push(node)
     }
 
+    fn push_text(&mut self, mut text: &'i str) {
+        if text.len() == 0 {
+            return
+        }
+        let remain = text.trim_ascii_start();
+        let trimmed = &text[..text.len() - remain.len()];
+        if trimmed.contains('\n') {
+            text = remain;
+            if text.len() == 0 {
+                return
+            }
+        }
+        let remain = text.trim_ascii_end();
+        let trimmed = &text[remain.len()..];
+        if trimmed.contains('\n') {
+            text = remain;
+            if text.len() == 0 {
+                return
+            }
+        }
+        self.push_node(Node::Text(text));
+    }
+
     pub fn skip(&mut self, offset: usize) {
         self.input = &self.input[offset..];
         self.offset += offset;
@@ -183,9 +206,7 @@ impl<'i> Reader<'i> {
 
     pub fn run(mut self) -> Result<Vec<Node<'i>>, SyntaxError> {
         while let Some(pos) = self.input.find(&self.meta.left) {
-            if pos > 0 {
-                self.push_node(Node::Text(&self.input[..pos]));
-            }
+            self.push_text(&self.input[..pos]);
             self.skip(pos + 1);
             if let Some(c @ ('#' | '/' | '@')) = self.input.chars().nth(0) {
                 self.skip(1);
@@ -197,9 +218,7 @@ impl<'i> Reader<'i> {
                 self.push_node(Node::Expr(expr));
             }
         }
-        if self.input.len() > 0 {
-            self.push_node(Node::Text(self.input));
-        }
+        self.push_text(self.input);
         let (element, info) = self.stack.pop().unwrap();
         if self.stack.len() > 0 {
             return Err(SyntaxError {

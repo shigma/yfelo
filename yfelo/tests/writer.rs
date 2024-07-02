@@ -34,6 +34,6 @@ pub fn if_1() {
     ctx.bind(&bar, Box::new(Instance::new(Value::from(false)))).unwrap();
     let output = y.run("
         {#if foo}Hello{/if}, {#if bar}world{/if}!
-    ".trim(), l.as_ref(), &META_SYNTAX, ctx.as_mut()).unwrap();
+    ", l.as_ref(), &META_SYNTAX, ctx.as_mut()).unwrap();
     assert_eq!(output, "Hello, !");
 }
