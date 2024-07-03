@@ -6,10 +6,10 @@ use std::marker::PhantomData;
 
 use builtin::{Apply, Def, For, If};
 use reader::Reader;
-use writer::Writer;
 
 pub use directive::*;
 pub use language::*;
+use writer::render;
 
 pub mod builtin;
 pub mod directive;
@@ -49,18 +49,13 @@ impl Yfelo {
         self.langs.insert(name.into(), Box::new(PhantomData::<(T, E, P)>));
     }
 
-    pub fn parse<'i>(&'i self, source: &'i str, lang: &'i dyn Language, meta: &'i MetaSyntax) -> Result<Vec<Node<'i>>, SyntaxError> {
+    pub fn parse<'i>(&'i self, source: &'i str, lang: &'i dyn Language, meta: &'i MetaSyntax) -> Result<Vec<Node>, SyntaxError> {
         let reader = Reader::new(source, meta, lang, &self.dirs);
         reader.run()
     }
 
-    pub fn render<'i>(&'i self, nodes: Vec<Node<'i>>, lang: &'i dyn Language, ctx: &'i mut dyn Context) -> Result<String, Box<dyn RuntimeError>> {
-        let writer = Writer::new(lang);
-        writer.run(&nodes, ctx)
-    }
-
-    pub fn run(&self, source: &str, lang: &dyn Language, meta: &MetaSyntax, ctx: &mut dyn Context) -> Result<String, Error> {
+    pub fn render<'i>(&'i self, source: &'i str, lang: &'i dyn Language, meta: &'i MetaSyntax, ctx: &mut dyn Context) -> Result<String, Error> {
         let nodes = self.parse(source, lang, meta).map_err(|e| Error::Syntax(e))?;
-        self.render(nodes, lang, ctx).map_err(|e| Error::Runtime(e))
+        render(ctx, &nodes).map_err(|e| Error::Runtime(e))
     }
 }

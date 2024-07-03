@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use crate::directive::{DirectiveFactory as Directive, Node};
 use crate::language::{Context, Expr, Pattern, RuntimeError, SyntaxError};
 use crate::reader::{Reader, TagInfo};
-use crate::writer::Writer;
+use crate::writer::render;
 
 /// No-op directive.
 /// 
@@ -18,7 +18,7 @@ use crate::writer::Writer;
 ///   ...
 /// {/stub}
 /// ```
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Stub;
 
 impl Directive for Stub {
@@ -26,8 +26,8 @@ impl Directive for Stub {
         Ok(Self)
     }
 
-    fn render<'i>(&self, writer: &Writer<'i>, children: &'i Vec<Node>, ctx: &mut dyn Context) -> Result<String, Box<dyn RuntimeError>> {
-        writer.render(children, ctx)
+    fn render(&self, ctx: &mut dyn Context, children: &Vec<Node>) -> Result<String, Box<dyn RuntimeError>> {
+        render(ctx, children)
     }
 }
 
@@ -36,10 +36,10 @@ impl Directive for Stub {
 /// ### Example
 /// ```yfelo
 /// {#if EXPR}
-///   ...
+///     ...
 /// {/if}
 /// ```
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct If {
     expr: Box<dyn Expr>,
 }
@@ -51,9 +51,9 @@ impl Directive for If {
         Ok(Self { expr })
     }
 
-    fn render<'i>(&self, writer: &Writer<'i>, children: &'i Vec<Node>, ctx: &mut dyn Context) -> Result<String, Box<dyn RuntimeError>> {
+    fn render(&self, ctx: &mut dyn Context, children: &Vec<Node>) -> Result<String, Box<dyn RuntimeError>> {
         if ctx.eval(&self.expr)?.as_bool()? {
-            return writer.render(children, ctx);
+            return render(ctx, children);
         }
         Ok(String::new())
     }
@@ -64,10 +64,10 @@ impl Directive for If {
 /// ### Example
 /// ```yfelo
 /// {#for PAT in EXPR}
-///  ...
+///     ...
 /// {/for}
 /// ```
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct For {
     vpat: Box<dyn Pattern>,
     kpat: Option<Box<dyn Pattern>>,
@@ -87,7 +87,7 @@ impl Directive for For {
         Ok(Self { vpat, kpat, expr })
     }
 
-    fn render<'i>(&self, writer: &Writer<'i>, children: &'i Vec<Node>, ctx: &mut dyn Context) -> Result<String, Box<dyn RuntimeError>> {
+    fn render(&self, ctx: &mut dyn Context, children: &Vec<Node>) -> Result<String, Box<dyn RuntimeError>> {
         let entries = ctx.eval(&self.expr)?.as_entries()?;
         let mut output = String::new();
         for entry in entries {
@@ -96,7 +96,7 @@ impl Directive for For {
             if let Some(kpat) = &self.kpat {
                 inner.bind(&kpat, entry.1)?;
             }
-            output += &writer.render(children, inner.as_mut())?;
+            output += &render(inner.as_mut(), children)?;
         }
         Ok(output)
     }
@@ -116,20 +116,88 @@ impl Directive for For {
 /// 
 /// ```yfelo
 /// {#def NAME(PARAMS)}
-///   ...
+///     ...
 /// {/def}
 /// ```
-#[derive(Debug, PartialEq)]
-pub struct Def {
+#[derive(Debug, Clone, PartialEq)]
+pub enum Def {
+    Var(DefVar),
+    Fn(DefFn),
+}
+
+/// Variable definition. Must have an inline expression.
+/// 
+/// ```yfelo
+/// {@def PAT = EXPR}
+/// ```
+#[derive(Debug, Clone, PartialEq)]
+pub struct DefVar {
     pat: Box<dyn Pattern>,
-    params: Option<Vec<Box<dyn Pattern>>>,
+    expr: Box<dyn Expr>,
+}
+
+impl DefVar {
+    fn render(&self, ctx: &mut dyn Context, _: &Vec<Node>) -> Result<String, Box<dyn RuntimeError>> {
+        let value = ctx.eval(&self.expr)?;
+        ctx.bind(&self.pat, value)?;
+        Ok(String::new())
+    }
+}
+
+/// Function definition, which can be further divided into two types:
+/// 
+/// 1. With inline expression.
+/// ```yfelo
+/// {@def NAME(...) = EXPR}
+/// ```
+/// 
+/// 2. With block content (parentheses are optional).
+/// ```yfelo
+/// {#def NAME(...)}
+///     ...
+/// {/def}
+/// ```
+#[derive(Debug, Clone, PartialEq)]
+pub struct DefFn {
+    ident: String,
+    params: Vec<Box<dyn Pattern>>,
     expr: Option<Box<dyn Expr>>,
+}
+
+impl DefFn {
+    fn render(&self, ctx: &mut dyn Context, nodes: &Vec<Node>) -> Result<String, Box<dyn RuntimeError>> {
+        let Self { params, expr, .. } = self.clone();
+        let nodes = nodes.iter().map(|node| node.clone()).collect::<Vec<_>>();
+        ctx.def(&self.ident, self.params.clone(), Box::new(move |mut ctx, args| {
+            for (pat, value) in params.iter().zip(args) {
+                ctx.bind(pat, value)?;
+            }
+            match &expr {
+                Some(expr) => ctx.eval(expr),
+                None => {
+                    let output = render(ctx.as_mut(), &nodes)?;
+                    Ok(ctx.value_from_string(output)?)
+                },
+            }
+        }))?;
+        Ok(String::new())
+    }
+}
+
+impl Def {
+    fn as_ident(pat: Box<dyn Pattern>) -> Result<String, SyntaxError> {
+        pat.into_ident().ok_or_else(|| SyntaxError {
+            message: "expected identifier".into(),
+            range: (0, 0), // fixme
+        })
+    }
 }
 
 impl Directive for Def {
     fn open(reader: &mut Reader, info: &TagInfo) -> Result<Self, SyntaxError> {
         let pat = reader.parse_pattern()?;
-        let params = if let Ok(_) = reader.parse_punct("(") {
+        Ok(if let Ok(_) = reader.parse_punct("(") {
+            let ident = Self::as_ident(pat)?;
             let mut params = vec![];
             loop {
                 if let Ok(_) = reader.parse_punct(")") {
@@ -142,34 +210,32 @@ impl Directive for Def {
                 reader.parse_punct(")")?;
                 break;
             }
-            Some(params)
+            let expr = if let Ok(_) = reader.parse_punct("=") {
+                info.expect_empty()?;
+                Some(reader.parse_expr()?)
+            } else {
+                info.expect_children()?;
+                None
+            };
+            Self::Fn(DefFn { ident, params, expr })
         } else {
-            None
-        };
-        let expr = if let Ok(_) = reader.parse_punct("=") {
-            info.expect_empty()?;
-            Some(reader.parse_expr()?)
-        } else {
-            info.expect_children()?;
-            None
-        };
-        Ok(Self { pat, params, expr })
+            if let Ok(_) = reader.parse_punct("=") {
+                info.expect_empty()?;
+                let expr = reader.parse_expr()?;
+                Self::Var(DefVar { pat, expr })
+            } else {
+                let ident = Self::as_ident(pat)?;
+                info.expect_children()?;
+                Self::Fn(DefFn { ident, expr: None, params: vec![] })
+            }
+        })
     }
 
-    fn render<'i>(&self, writer: &Writer<'i>, nodes: &'i Vec<Node>, ctx: &mut dyn Context) -> Result<String, Box<dyn RuntimeError>> {
-        if let Some(_) = &self.params {
-            todo!();
-        } else {
-            if let Some(expr) = &self.expr {
-                let value = ctx.eval(expr)?;
-                ctx.bind(&self.pat, value)?;
-            } else {
-                let output = writer.render(nodes, ctx)?;
-                let value = ctx.value_from_string(output)?;
-                ctx.bind(&self.pat, value)?;
-            }
+    fn render(&self, ctx: &mut dyn Context, nodes: &Vec<Node>) -> Result<String, Box<dyn RuntimeError>> {
+        match self {
+            Self::Var(def) => def.render(ctx, nodes),
+            Self::Fn(def) => def.render(ctx, nodes),
         }
-        Ok(String::new())
     }
 }
 
@@ -181,42 +247,41 @@ impl Directive for Def {
 /// ```yfelo
 /// {@apply NAME(PARAMS)}
 /// ```
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Apply {
     name: String,
-    params: Option<Vec<Box<dyn Expr>>>,
+    args: Vec<Box<dyn Expr>>,
 }
 
 impl Directive for Apply {
     fn open(reader: &mut Reader, info: &TagInfo) -> Result<Self, SyntaxError> {
         let name = reader.parse_ident()?.into();
-        let params = if let Ok(_) = reader.parse_punct("(") {
-            let mut params = vec![];
+        let args = if let Ok(_) = reader.parse_punct("(") {
+            let mut args = vec![];
             loop {
                 if let Ok(_) = reader.parse_punct(")") {
                     break;
                 }
-                params.push(reader.parse_expr()?);
+                args.push(reader.parse_expr()?);
                 if let Ok(_) = reader.parse_punct(",") {
                     continue;
                 }
                 reader.parse_punct(")")?;
                 break;
             }
-            Some(params)
+            args
         } else {
-            None
+            vec![]
         };
         info.expect_empty()?;
-        Ok(Self { name, params })
+        Ok(Self { name, args })
     }
 
-    fn render<'i>(&self, _: &Writer<'i>, _: &'i Vec<Node>, ctx: &mut dyn Context) -> Result<String, Box<dyn RuntimeError>> {
-        if let Some(_) = &self.params {
-            todo!();
-        } else {
-            let value = ctx.eval(&ctx.new_ident(&self.name)?)?;
-            Ok(value.to_string()?)
-        }
+    fn render(&self, ctx: &mut dyn Context, _: &Vec<Node>) -> Result<String, Box<dyn RuntimeError>> {
+        let args = self.args.iter()
+            .map(|expr| ctx.eval(expr))
+            .collect::<Result<Vec<_>, _>>()?;
+        let value = ctx.apply(&self.name, args)?;
+        Ok(value.to_string()?)
     }
 }

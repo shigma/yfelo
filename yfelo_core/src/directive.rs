@@ -5,30 +5,31 @@ use dyn_std::Instance;
 
 use crate::language::{Context, Expr, RuntimeError, SyntaxError};
 use crate::reader::{TagInfo, Reader};
-use crate::writer::Writer;
 
-#[derive(Debug, PartialEq)]
-pub struct Element<'i> {
+// FIXME: `Element`, `Node` and `Directive` should not derive `Clone`.
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Element {
     pub directive: Box<dyn Directive>,
-    pub children: Vec<Node<'i>>,
+    pub children: Vec<Node>,
 }
 
-#[derive(Debug, PartialEq)]
-pub enum Node<'i> {
-    Text(&'i str),
+#[derive(Debug, Clone, PartialEq)]
+pub enum Node {
+    Text(String),
     Expr(Box<dyn Expr>),
-    Element(Element<'i>),
+    Element(Element),
 }
 
 #[dyn_trait]
-pub trait Directive: Debug + PartialEq {
+pub trait Directive: Debug + Clone + PartialEq {
     fn open(reader: &mut Reader, info: &TagInfo) -> Result<Self, SyntaxError>;
 
     fn close(&mut self, _reader: &mut Reader, _info: &TagInfo) -> Result<(), SyntaxError> {
         Ok(())
     }
 
-    fn render<'i>(&self, writer: &Writer<'i>, children: &'i Vec<Node>, ctx: &mut dyn Context) -> Result<String, Box<dyn RuntimeError>>;
+    fn render(&self, ctx: &mut dyn Context, children: &Vec<Node>) -> Result<String, Box<dyn RuntimeError>>;
 }
 
 impl<T: 'static + DirectiveFactory> Directive for PhantomData<T> {
@@ -40,7 +41,7 @@ impl<T: 'static + DirectiveFactory> Directive for PhantomData<T> {
         unreachable!("unexpected invocation of non-dispatchable function")
     }
 
-    fn render<'i>(&self, _: &Writer<'i>, _: &'i Vec<Node>, _: &mut dyn Context) -> Result<String, Box<dyn RuntimeError>> {
+    fn render(&self, _: &mut dyn Context, _: &Vec<Node>) -> Result<String, Box<dyn RuntimeError>> {
         unreachable!("unexpected invocation of non-dispatchable function")
     }
 }

@@ -42,7 +42,7 @@ pub struct Reader<'i>{
     offset: usize,
     dirs: &'i HashMap<String, Box<dyn Directive>>,
     meta: &'i MetaSyntax<'i>,
-    stack: Vec<(Element<'i>, TagInfo<'i>)>,
+    stack: Vec<(Element, TagInfo<'i>)>,
 }
 
 impl<'i> Reader<'i> {
@@ -64,7 +64,7 @@ impl<'i> Reader<'i> {
         }
     }
 
-    fn push_node(&mut self, node: Node<'i>) {
+    fn push_node(&mut self, node: Node) {
        self.stack.last_mut().unwrap().0.children.push(node)
     }
 
@@ -88,7 +88,7 @@ impl<'i> Reader<'i> {
                 return
             }
         }
-        self.push_node(Node::Text(text));
+        self.push_node(Node::Text(text.into()));
     }
 
     pub fn skip(&mut self, offset: usize) {
@@ -183,7 +183,6 @@ impl<'i> Reader<'i> {
             },
             '/' => {
                 let (mut element, parent) = self.stack.pop().unwrap();
-                println!("{:?} {:?}", parent, info);
                 if parent.name != name {
                     let suffix = if self.stack.len() > 0 {
                         format!(": expect '{}', found '{}'", parent.name, name)
@@ -210,7 +209,7 @@ impl<'i> Reader<'i> {
         Ok(())
     }
 
-    pub fn run(mut self) -> Result<Vec<Node<'i>>, SyntaxError> {
+    pub fn run(mut self) -> Result<Vec<Node>, SyntaxError> {
         while let Some(pos) = self.input.find(&self.meta.left) {
             self.push_text(&self.input[..pos]);
             self.skip(pos + 1);

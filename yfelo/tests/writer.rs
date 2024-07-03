@@ -18,7 +18,7 @@ const META_SYNTAX: MetaSyntax = MetaSyntax {
 pub fn basic_1() {
     let (y, l) = (YFELO, LANG);
     let mut ctx: Box<dyn yfelo::Context> = Box::new(Instance::new(Context::new()));
-    let output = y.run("
+    let output = y.render("
         {@def world = 'yfelo'}
         Hello, {world}!
     ", l.as_ref(), &META_SYNTAX, ctx.as_mut()).unwrap();
@@ -29,7 +29,7 @@ pub fn basic_1() {
 pub fn if_1() {
     let (y, l) = (YFELO, LANG);
     let mut ctx: Box<dyn yfelo::Context> = Box::new(Instance::new(Context::new()));
-    let output = y.run("
+    let output = y.render("
         {@def foo = true}
         {@def bar = false}
         {#if foo}Hello{/if}, {#if bar}world{/if}!
@@ -41,11 +41,24 @@ pub fn if_1() {
 pub fn def_1() {
     let (y, l) = (YFELO, LANG);
     let mut ctx: Box<dyn yfelo::Context> = Box::new(Instance::new(Context::new()));
-    let output = y.run("
+    let output = y.render("
         {#def text}
             Hello, world!
         {/def}
         {@apply text}
     ", l.as_ref(), &META_SYNTAX, ctx.as_mut()).unwrap();
     assert_eq!(output, "Hello, world!");
+}
+
+#[test]
+pub fn def_2() {
+    let (y, l) = (YFELO, LANG);
+    let mut ctx: Box<dyn yfelo::Context> = Box::new(Instance::new(Context::new()));
+    let output = y.render("
+        {#def text(world)}
+            Hello, {world}!
+        {/def}
+        {@apply text('yfelo')}
+    ", l.as_ref(), &META_SYNTAX, ctx.as_mut()).unwrap();
+    assert_eq!(output, "Hello, yfelo!");
 }

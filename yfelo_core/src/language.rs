@@ -24,7 +24,9 @@ pub trait Language<#[dynamic] E: Expr, #[dynamic] P: Pattern> {
 pub trait Expr: Debug + Clone + PartialEq {}
 
 #[dyn_trait]
-pub trait Pattern: Debug + Clone + PartialEq {}
+pub trait Pattern: Debug + Clone + PartialEq {
+    fn into_ident(self) -> Option<String>;
+}
 
 #[dyn_trait]
 pub trait Context<#[dynamic] E: Expr, #[dynamic] P: Pattern, #[dynamic] V: Value<R>, #[dynamic] R: RuntimeError> {
@@ -32,9 +34,8 @@ pub trait Context<#[dynamic] E: Expr, #[dynamic] P: Pattern, #[dynamic] V: Value
     fn fork(&self) -> Self;
     fn bind(&mut self, pattern: &P, value: V) -> Result<(), R>;
     fn value_from_string(str: String) -> Result<V, R>;
-    fn new_ident(name: &str) -> Result<E, R>;
-    fn new_apply(name: &str, params: Vec<E>) -> Result<E, R>;
-    fn bind_fn(&mut self, name: &str, params: Vec<P>, cb: Box<dyn Fn(Vec<Box<dyn Value>>) -> Result<Box<dyn Value>, Box<dyn RuntimeError>>>) -> Result<(), R>;
+    fn def(&mut self, name: &str, params: Vec<P>, cb: Box<dyn Fn(Box<dyn Context>, Vec<Box<dyn Value>>) -> Result<Box<dyn Value>, Box<dyn RuntimeError>>>) -> Result<(), R>;
+    fn apply(&self, name: &str, params: Vec<V>) -> Result<V, R>;
 }
 
 #[dyn_trait]

@@ -44,9 +44,9 @@ pub fn basic_1() {
     let (y, l) = (YFELO, LANG);
     let nodes = y.parse("(Hello) {world}!", l.as_ref(), &META_SYNTAX).unwrap();
     assert_eq!(nodes, vec![
-        Node::Text("(Hello) "),
+        Node::Text("(Hello) ".into()),
         Node::Expr(Box::from(Instance::new(ident!("world")))),
-        Node::Text("!"),
+        Node::Text("!".into()),
     ]);
 }
 
@@ -85,7 +85,7 @@ pub fn basic_4() {
             Index,
             ident!("ld"),
         )))),
-        Node::Text("!"),
+        Node::Text("!".into()),
     ]);
 }
 
@@ -128,14 +128,14 @@ pub fn tag_1() {
     assert_eq!(nodes, vec![
         Node::Element(Element {
             directive: Box::new(Instance::new(Stub)),
-            children: vec![Node::Text("Hello")],
+            children: vec![Node::Text("Hello".into())],
         }),
-        Node::Text(" "),
+        Node::Text(" ".into()),
         Node::Element(Element {
             directive: Box::new(Instance::new(Stub)),
-            children: vec![Node::Text("world")],
+            children: vec![Node::Text("world".into())],
         }),
-        Node::Text("!"),
+        Node::Text("!".into()),
     ]);
 }
 
@@ -147,17 +147,17 @@ pub fn tag_2() {
         Node::Element(Element {
             directive: Box::new(Instance::new(Stub)),
             children: vec![
-                Node::Text("Hello"),
+                Node::Text("Hello".into()),
                 Node::Element(Element {
                     directive: Box::new(Instance::new(Stub)),
                     children: vec![],
                 }),
-                Node::Text(" "),
+                Node::Text(" ".into()),
                 Node::Element(Element {
                     directive: Box::new(Instance::new(Stub)),
-                    children: vec![Node::Text("world")],
+                    children: vec![Node::Text("world".into())],
                 }),
-                Node::Text("!"),
+                Node::Text("!".into()),
             ],
         }),
     ]);

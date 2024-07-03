@@ -244,7 +244,13 @@ pub enum Pattern {
     Ident(String),
 }
 
-impl factory::Pattern for Pattern {}
+impl factory::Pattern for Pattern {
+    fn into_ident(self) -> Option<String> {
+        match self {
+            Pattern::Ident(ident) => Some(ident),
+        }
+    }
+}
 
 impl Pattern {
     fn from(pair: Pair<Rule>) -> Self {
@@ -375,23 +381,24 @@ impl factory::Context<Expr, Pattern, Value, RuntimeError> for Context {
         Ok(Value::String(str))
     }
 
-    fn new_ident(name: &str) -> Result<Expr, RuntimeError> {
-        Ok(Expr::Ident(name.into()))
-    }
-
-    fn new_apply(name: &str, params: Vec<Expr>) -> Result<Expr, RuntimeError> {
-        Ok(Expr::Apply(Box::new(Expr::Ident(name.into())), params))
-    }
-
-    fn bind_fn(&mut self, name: &str, _: Vec<Pattern>, cb: Box<dyn Fn(Vec<Box<dyn yfelo_core::Value>>) -> Result<Box<dyn yfelo_core::Value>, Box<dyn yfelo_core::RuntimeError>>>) -> Result<(), RuntimeError> {
+    fn def(&mut self, name: &str, _: Vec<Pattern>, cb: Box<dyn Fn(Box<dyn yfelo_core::Context>, Vec<Box<dyn yfelo_core::Value>>) -> Result<Box<dyn yfelo_core::Value>, Box<dyn yfelo_core::RuntimeError>>>) -> Result<(), RuntimeError> {
+        let inner = self.fork();
         self.f_store.insert(name.into(), Box::new(move |args| {
+            let inner = Box::new(Instance::new(inner.fork()));
             let args = args.into_iter().map(|value| Box::new(Instance::new(value)) as Box<dyn yfelo_core::Value>).collect();
-            match cb(args) {
+            match cb(inner, args) {
                 Ok(value) => Ok(value.as_any_box().downcast::<Instance<Value, (RuntimeError, )>>().unwrap().0),
                 Err(err) => Err(err.as_any_box().downcast::<Instance<RuntimeError, ()>>().unwrap().0),
             }
         }));
         Ok(())
+    }
+
+    fn apply(&self, name: &str, args: Vec<Value>) -> Result<Value, RuntimeError> {
+        let Some(f) = self.f_store.get(name) else {
+            return Err(RuntimeError {});
+        };
+        f(args)
     }
 }
 
