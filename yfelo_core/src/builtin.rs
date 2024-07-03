@@ -4,7 +4,7 @@ use crate::directive::{DirectiveFactory as Directive, Node};
 use crate::language::{Context, Expr, Pattern, RuntimeError, SyntaxError};
 use crate::reader::{Reader, TagInfo};
 use crate::writer::render;
-use crate::DefValue;
+use crate::Definiton;
 
 /// No-op directive.
 /// 
@@ -169,8 +169,8 @@ impl DefFn {
     fn render(&self, ctx: &mut dyn Context, nodes: &Vec<Node>) -> Result<String, Box<dyn RuntimeError>> {
         let Self { expr, .. } = self.clone();
         ctx.def(&self.ident, self.params.clone(), match &expr {
-            Some(expr) => DefValue::Inline(expr.clone()),
-            None => DefValue::Block(nodes.clone()),
+            Some(expr) => Definiton::Inline(expr.clone()),
+            None => Definiton::Block(nodes.clone()),
         })?;
         Ok(String::new())
     }
