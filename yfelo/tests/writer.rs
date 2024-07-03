@@ -38,7 +38,19 @@ pub fn if_1() {
 }
 
 #[test]
-pub fn def_1() {
+pub fn def_inline_1() {
+    let (y, l) = (YFELO, LANG);
+    let mut ctx: Box<dyn yfelo::Context> = Box::new(Instance::new(Context::new()));
+    let output = y.render("
+        {@def foo = 'bar'}
+        {@def bar = 'foo'}
+        {foo + bar}
+    ", l.as_ref(), &META_SYNTAX, ctx.as_mut()).unwrap();
+    assert_eq!(output, "barfoo");
+}
+
+#[test]
+pub fn def_block_1() {
     let (y, l) = (YFELO, LANG);
     let mut ctx: Box<dyn yfelo::Context> = Box::new(Instance::new(Context::new()));
     let output = y.render("
@@ -51,7 +63,7 @@ pub fn def_1() {
 }
 
 #[test]
-pub fn def_2() {
+pub fn def_block_2() {
     let (y, l) = (YFELO, LANG);
     let mut ctx: Box<dyn yfelo::Context> = Box::new(Instance::new(Context::new()));
     let output = y.render("

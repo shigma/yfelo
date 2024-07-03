@@ -4,7 +4,7 @@ use crate::directive::{DirectiveFactory as Directive, Node};
 use crate::language::{Context, Expr, Pattern, RuntimeError, SyntaxError};
 use crate::reader::{Reader, TagInfo};
 use crate::writer::render;
-use crate::Definiton;
+use crate::Definition;
 
 /// No-op directive.
 /// 
@@ -169,8 +169,8 @@ impl DefFn {
     fn render(&self, ctx: &mut dyn Context, nodes: &Vec<Node>) -> Result<String, Box<dyn RuntimeError>> {
         let Self { expr, .. } = self.clone();
         ctx.def(&self.ident, self.params.clone(), match &expr {
-            Some(expr) => Definiton::Inline(expr.clone()),
-            None => Definiton::Block(nodes.clone()),
+            Some(expr) => Definition::Inline(expr.clone()),
+            None => Definition::Block(nodes.clone()),
         })?;
         Ok(String::new())
     }
@@ -275,11 +275,10 @@ impl Directive for Apply {
         Ok(Self { name, args })
     }
 
-    fn render(&self, ctx: &mut dyn Context, _: &Vec<Node>) -> Result<String, Box<dyn RuntimeError>> {
-        let args = self.args.iter()
-            .map(|expr| ctx.eval(expr))
-            .collect::<Result<Vec<_>, _>>()?;
-        let value = ctx.apply(&self.name, args)?;
+    fn render(&self, ctx: &mut dyn Context, nodes: &Vec<Node>) -> Result<String, Box<dyn RuntimeError>> {
+        let value = ctx.apply(&self.name, self.args.clone(), &mut |ctx| {
+            render(ctx, nodes)
+        })?;
         Ok(value.to_string()?)
     }
 }

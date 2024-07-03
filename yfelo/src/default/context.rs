@@ -1,21 +1,64 @@
-use std::collections::{BTreeMap, HashMap};
-
 use dyn_std::Instance;
-use yfelo_core::{factory, writer::render, Definiton};
+use yfelo_core::{factory, writer::render, ContextFactory, Definition};
 
 use super::{Expr, Pattern, RuntimeError, Value};
 
 pub struct Context {
     inner: Value,
-    f_store: HashMap<String, Box<dyn Fn(Vec<Value>) -> Result<Value, RuntimeError>>>,
 }
 
 impl Context {
     pub fn new() -> Self {
         Self {
-            inner: Value::Object(BTreeMap::new()),
-            f_store: HashMap::new(),
+            inner: Value::Object(Default::default()),
         }
+    }
+
+    fn preapply(&self, params: &Vec<(Pattern, Option<Expr>)>, args: Vec<Value>) -> Result<Self, RuntimeError> {
+        let mut inner = self.fork();
+        for (index, (pattern, default)) in params.iter().enumerate() {
+            let value = match args.get(index) {
+                Some(value) => value.clone(),
+                None => match default {
+                    Some(expr) => inner.eval(expr)?,
+                    None => {
+                        return Err(RuntimeError {});
+                    },
+                },
+            };
+            inner.bind(pattern, value)?;
+        }
+        Ok(inner)
+    }
+
+    fn postapply(self, definition: &Definition) -> Result<Value, RuntimeError> {
+        match definition {
+            Definition::Inline(expr) => {
+                self.eval(&expr.as_any().downcast_ref::<Instance<Expr, ()>>().unwrap().0)
+            },
+            Definition::Block(nodes) => {
+                match render(&mut Instance::new(self), &nodes) {
+                    Ok(value) => Ok(Value::String(value)),
+                    Err(e) => Err(e.as_any_box().downcast::<Instance<RuntimeError, ()>>().unwrap().0),
+                }
+            },
+        }
+    }
+
+    fn apply(&self, f: &Value, args: Vec<Expr>, init: &mut dyn FnMut(&mut dyn yfelo_core::Context) -> Result<String, Box<dyn yfelo_core::RuntimeError>>) -> Result<Value, RuntimeError> {
+        // todo: try
+        let Value::Abs(params, definition) = f else {
+            return Err(RuntimeError {});
+        };
+        let args = args.iter()
+            .map(|expr| self.eval(expr))
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut inst = Instance::new(self.preapply(params, args)?);
+        let value = init(&mut inst).map_err(|e| {
+            e.as_any_box().downcast::<Instance<RuntimeError, ()>>().unwrap().0
+        })?;
+        inst.0.postapply(definition)?;
+        Ok(Value::String(value))
     }
 }
 
@@ -37,33 +80,29 @@ impl factory::Context<Expr, Pattern, Value, RuntimeError> for Context {
             },
             Expr::Array(vec) => {
                 Value::Array(vec.iter().map(|expr| {
-                    self.eval(expr).unwrap()
-                }).collect())
+                    self.eval(expr)
+                }).collect::<Result<Vec<_>, _>>()?)
             },
-            // Expr::Apply(func, args) => {
-            //     let func = self.eval(func).unwrap();
-            //     let args = args.iter().map(|expr| {
-            //         self.eval(expr).unwrap()
-            //     }).collect();
-            //     Value::Null
-            // },
+            Expr::Apply(func, args) => {
+                let func = self.eval(func)?;
+                // todo: clone
+                self.apply(&func, args.clone(), &mut |_| Ok(String::new()))?
+            },
             Expr::Unary(op, expr) => {
-                let value = self.eval(expr).unwrap();
+                let value = self.eval(expr)?;
                 op.eval(value)?
             },
             Expr::Binary(lhs, op, rhs) => {
-                let lhs = self.eval(lhs).unwrap();
-                let rhs = self.eval(rhs).unwrap();
+                let lhs = self.eval(lhs)?;
+                let rhs = self.eval(rhs)?;
                 op.eval(lhs, rhs)?
             },
-            _ => unimplemented!(),
         })
     }
 
     fn fork(&self) -> Self {
         Context {
             inner: self.inner.clone(),
-            f_store: HashMap::new(), // fixme clone
         }
     }
 
@@ -76,41 +115,12 @@ impl factory::Context<Expr, Pattern, Value, RuntimeError> for Context {
         }
     }
 
-    fn def(&mut self, name: &str, params: Vec<(Pattern, Option<Expr>)>, v: Definiton) -> Result<(), RuntimeError> {
-        let inner = self.fork();
-        self.f_store.insert(name.into(), Box::new(move |args| {
-            let mut inner = inner.fork();
-            for (index, (pattern, default)) in params.iter().enumerate() {
-                let value = match args.get(index) {
-                    Some(value) => value.clone(),
-                    None => match default {
-                        Some(expr) => inner.eval(expr)?,
-                        None => {
-                            return Err(RuntimeError {});
-                        },
-                    },
-                };
-                inner.bind(pattern, value)?;
-            }
-            match &v {
-                Definiton::Inline(expr) => {
-                    inner.eval(&expr.as_any().downcast_ref::<Instance<Expr, ()>>().unwrap().0)
-                },
-                Definiton::Block(nodes) => {
-                    match render(&mut Instance::new(inner), nodes) {
-                        Ok(value) => Ok(Value::String(value)),
-                        Err(e) => Err(e.as_any_box().downcast::<Instance<RuntimeError, ()>>().unwrap().0),
-                    }
-                },
-            }
-        }));
+    fn def(&mut self, name: &str, params: Vec<(Pattern, Option<Expr>)>, definition: Definition) -> Result<(), RuntimeError> {
+        self.inner[name.into()] = Value::Abs(params, definition);
         Ok(())
     }
 
-    fn apply(&self, name: &str, args: Vec<Value>) -> Result<Value, RuntimeError> {
-        let Some(f) = self.f_store.get(name) else {
-            return Err(RuntimeError {});
-        };
-        f(args)
+    fn apply(&self, name: &str, args: Vec<Expr>, init: &mut dyn FnMut(&mut dyn yfelo_core::Context) -> Result<String, Box<dyn yfelo_core::RuntimeError>>) -> Result<Value, RuntimeError> {
+        Self::apply(&self, &self.inner[name], args, init)
     }
 }

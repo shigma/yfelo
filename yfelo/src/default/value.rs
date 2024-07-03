@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
 use std::{fmt, ops};
 
-use yfelo_core::factory;
+use yfelo_core::{factory, Definition};
 
-use super::RuntimeError;
+use super::{Expr, Pattern, RuntimeError};
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -13,6 +13,7 @@ pub enum Value {
     String(String),
     Array(Vec<Value>),
     Object(BTreeMap<String, Value>),
+    Abs(Vec<(Pattern, Option<Expr>)>, Definition),
 }
 
 impl Value {
@@ -24,7 +25,7 @@ impl Value {
         }
     }
 
-    pub fn as_string(&self) -> Result<&String, RuntimeError> {
+    pub fn as_str(&self) -> Result<&str, RuntimeError> {
         match &self {
             Self::String(s) => Ok(s),
             _ => Err(RuntimeError {}),
@@ -37,8 +38,7 @@ impl Value {
             Self::Bool(b) => Ok(*b),
             Self::Number(n) => Ok(*n != 0.),
             Self::String(s) => Ok(!s.is_empty()),
-            Self::Array(_) => Ok(true),
-            Self::Object(_) => Ok(true),
+            _ => Ok(true),
         }
     }
 }
@@ -149,6 +149,9 @@ impl fmt::Display for Value {
                     write!(f, "{}: {}", k, v)?;
                 }
                 write!(f, "}}")
+            },
+            Value::Abs(_, _) => {
+                write!(f, "fn")
             },
         }
     }

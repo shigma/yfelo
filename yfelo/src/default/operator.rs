@@ -76,7 +76,12 @@ impl BinaryOp {
             Self::Mul => Value::Number(lhs.as_number()? * rhs.as_number()?),
             Self::Div => Value::Number(lhs.as_number()? / rhs.as_number()?),
             Self::Mod => Value::Number(lhs.as_number()? % rhs.as_number()?),
-            Self::Add => Value::Number(lhs.as_number()? + rhs.as_number()?),
+            Self::Add => {
+                match (lhs, rhs) {
+                    (Value::String(lhs), Value::String(rhs)) => Value::String(lhs + &rhs),
+                    (lhs, rhs) => Value::Number(lhs.as_number()? + rhs.as_number()?),
+                }
+            },
             Self::Sub => Value::Number(lhs.as_number()? - rhs.as_number()?),
             Self::Shl => Value::Number(((lhs.as_number()? as i64) << (rhs.as_number()? as i64)) as f64),
             Self::Shr => Value::Number(((lhs.as_number()? as i64) >> (rhs.as_number()? as i64)) as f64),
@@ -96,7 +101,7 @@ impl BinaryOp {
                     vec.get(rhs.as_number()? as usize).unwrap_or(&Value::Null).clone()
                 },
                 Value::Object(map) => {
-                    map.get(rhs.as_string()?).unwrap_or(&Value::Null).clone()
+                    map.get(rhs.as_str()?).unwrap_or(&Value::Null).clone()
                 },
                 _ => todo!(),
             },

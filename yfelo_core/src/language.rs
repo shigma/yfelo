@@ -30,7 +30,8 @@ pub trait Pattern: Debug + Clone + PartialEq {
     fn into_ident(self) -> Option<String>;
 }
 
-pub enum Definiton {
+#[derive(Debug, Clone, PartialEq)]
+pub enum Definition {
     Inline(Box<dyn Expr>),
     Block(Vec<Node>),
 }
@@ -40,8 +41,9 @@ pub trait Context<#[dynamic] E: Expr, #[dynamic] P: Pattern, #[dynamic] V: Value
     fn eval(&self, expr: &E) -> Result<V, R>;
     fn fork(&self) -> Self;
     fn bind(&mut self, pattern: &P, value: V) -> Result<(), R>;
-    fn def(&mut self, name: &str, params: Vec<(P, Option<E>)>, v: Definiton) -> Result<(), R>;
-    fn apply(&self, name: &str, args: Vec<V>) -> Result<V, R>;
+    fn def(&mut self, name: &str, params: Vec<(P, Option<E>)>, definition: Definition) -> Result<(), R>;
+    // fixme: &[E]
+    fn apply(&self, name: &str, args: Vec<E>, init: &mut dyn FnMut(&mut dyn Context) -> Result<String, Box<dyn RuntimeError>>) -> Result<V, R>;
 }
 
 #[dyn_trait]
