@@ -1,7 +1,7 @@
 use pest::{iterators::Pair, Parser};
 use yfelo_core::{factory, SyntaxError};
 
-use super::parser::{DefaultParser, Rule};
+use super::parser::{make_span, DefaultParser, Rule};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Pattern {
@@ -25,7 +25,7 @@ impl Pattern {
             },
             Err(e) => return Err(SyntaxError {
                 message: e.to_string(),
-                range: (0, 0), // TODO
+                range: make_span(e.location),
             }),
         }
     }

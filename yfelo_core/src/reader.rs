@@ -19,7 +19,7 @@ impl<'i> TagInfo<'i> {
         match self.mark {
             '#' => Ok(()),
             _ => Err(SyntaxError {
-                message: format!("directive {} should not be empty", self.name),
+                message: format!("directive '{}' should not be empty", self.name),
                 range: self.range,
             }),
         }
@@ -29,7 +29,7 @@ impl<'i> TagInfo<'i> {
         match self.mark {
             '@' => Ok(()),
             _ => Err(SyntaxError {
-                message: format!("directive {} should be empty", self.name),
+                message: format!("directive '{}' should be empty", self.name),
                 range: self.range,
             }),
         }
@@ -103,27 +103,48 @@ impl<'i> Reader<'i> {
     }
 
     pub fn parse_expr(&mut self) -> Result<Box<dyn Expr>, SyntaxError> {
-        let (expr, offset) = self.lang.parse_expr(self.input)?;
-        self.skip(offset);
-        self.trim_start();
-        Ok(expr)
+        match self.lang.parse_expr(self.input) {
+            Ok((expr, offset)) => {
+                self.skip(offset);
+                self.trim_start();
+                Ok(expr)
+            },
+            Err(_) => Err(SyntaxError {
+                message: format!("expect expression"),
+                range: (self.offset, self.offset),
+            }),
+        }
     }
 
     pub fn parse_pattern(&mut self) -> Result<Box<dyn Pattern>, SyntaxError> {
-        let (expr, offset) = self.lang.parse_pattern(self.input)?;
-        self.skip(offset);
-        self.trim_start();
-        Ok(expr)
+        match self.lang.parse_pattern(self.input) {
+            Ok((expr, offset)) => {
+                self.skip(offset);
+                self.trim_start();
+                Ok(expr)
+            },
+            Err(_) => Err(SyntaxError {
+                message: format!("expect pattern"),
+                range: (self.offset, self.offset),
+            }),
+        }
     }
 
-    pub fn parse_ident(&mut self) -> Result<&'i str, SyntaxError> {
+    pub fn parse_ident(&mut self) -> Result<(&'i str, (usize, usize)), SyntaxError> {
         let pos = self.input
             .find(|c: char| !c.is_ascii_alphanumeric())
             .unwrap_or(self.input.len());
+        if pos == 0 {
+            return Err(SyntaxError {
+                message: format!("expect identifier"),
+                range: (self.offset, self.offset),
+            });
+        }
         let ident = &self.input[..pos];
+        let range = (self.offset, self.offset + pos);
         self.skip(pos);
         self.trim_start();
-        Ok(ident)
+        Ok((ident, range))
     }
 
     pub fn parse_punct(&mut self, punct: &str) -> Result<(), SyntaxError> {
@@ -133,8 +154,8 @@ impl<'i> Reader<'i> {
             Ok(())
         } else {
             Err(SyntaxError {
-                message: format!("expected punctuation {}", punct),
-                range: (self.offset, self.offset + 1),
+                message: format!("expected punctuation '{}'", punct),
+                range: (self.offset, self.offset),
             })
         }
     }
@@ -145,8 +166,8 @@ impl<'i> Reader<'i> {
             Ok(())
         } else {
             Err(SyntaxError {
-                message: format!("expected keyword {}", keyword),
-                range: (self.offset, self.offset + 1),
+                message: format!("expect keyword '{}'", keyword),
+                range: (self.offset, self.offset),
             })
         }
     }
@@ -157,15 +178,27 @@ impl<'i> Reader<'i> {
             Ok(())
         } else {
             Err(SyntaxError {
-                message: format!("invalid tag syntax"),
-                range: (self.offset, self.offset + 1),
+                message: format!("invalid tag syntax: expect '}}'"),
+                range: (self.offset, self.offset),
             })
         }
     }
 
+    fn directive_open(&mut self, directive: &dyn Directive, info: &TagInfo) -> Result<Box<dyn Directive>, SyntaxError> {
+        directive.open(self, &info).map_err(|mut error| {
+            // directive may produce error with tag info
+            if error.range != info.range {
+                error.message = format!("invalid syntax for directive '{}': {}", info.name, error.message);
+            }
+            error
+        })
+    }
+
     fn directive(&mut self, mark: char) -> Result<(), SyntaxError> {
-        let name = self.parse_ident()?;
-        let range = (self.offset - name.len(), self.offset);
+        let (name, range) = self.parse_ident().map_err(|mut error| {
+            error.message = format!("invalid tag syntax: missing directive name");
+            error
+        })?;
         let Some(directive) = self.dirs.get(name) else {
             return Err(SyntaxError {
                 message: format!("unknown directive '{}'", name),
@@ -175,7 +208,7 @@ impl<'i> Reader<'i> {
         let info = TagInfo { name, range, mark };
         match mark {
             '#' => {
-                let directive = directive.open(self, &info)?;
+                let directive = self.directive_open(directive.as_ref(), &info)?;
                 self.stack.push((Element {
                     directive,
                     children: vec![],
@@ -198,7 +231,7 @@ impl<'i> Reader<'i> {
                 self.push_node(Node::Element(element));
             },
             '@' => {
-                let directive = directive.open(self, &info)?;
+                let directive = self.directive_open(directive.as_ref(), &info)?;
                 self.push_node(Node::Element(Element {
                     directive,
                     children: vec![],

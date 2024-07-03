@@ -253,7 +253,7 @@ pub struct Apply {
 
 impl Directive for Apply {
     fn open(reader: &mut Reader, info: &TagInfo) -> Result<Self, SyntaxError> {
-        let name = reader.parse_ident()?.into();
+        let name = reader.parse_ident()?.0.into();
         let args = if let Ok(_) = reader.parse_punct("(") {
             let mut args = vec![];
             loop {

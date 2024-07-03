@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use pest::{iterators::{Pair, Pairs}, Parser};
 use yfelo_core::{factory, SyntaxError};
 
-use super::operator::{BinaryOp, UnaryOp};
+use super::{operator::{BinaryOp, UnaryOp}, parser::make_span};
 use super::parser::{DefaultParser, Rule};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -43,7 +43,7 @@ impl Expr {
             },
             Err(e) => Err(SyntaxError {
                 message: e.to_string(),
-                range: (0, 0), // TODO
+                range: make_span(e.location),
             }),
         }
     }
