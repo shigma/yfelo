@@ -6,5 +6,5 @@ description = "core library for Yfelo template engine"
 license = "MIT"
 
 [dependencies]
-dyn_std = "0.3.0"
-dyn_derive = "0.3.0"
+dyn_std = { version = "0.3.0", path = "../external/dyn_std" }
+dyn_derive = { version = "0.3.1", path = "../external/dyn_derive" }

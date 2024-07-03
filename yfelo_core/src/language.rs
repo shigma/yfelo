@@ -2,6 +2,8 @@ use std::{fmt::Debug, marker::PhantomData};
 
 use dyn_std::Instance;
 
+use crate::Node;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct SyntaxError {
     pub message: String,
@@ -28,13 +30,18 @@ pub trait Pattern: Debug + Clone + PartialEq {
     fn into_ident(self) -> Option<String>;
 }
 
+pub enum DefValue {
+    Inline(Box<dyn Expr>),
+    Block(Vec<Node>),
+}
+
 #[dyn_trait]
 pub trait Context<#[dynamic] E: Expr, #[dynamic] P: Pattern, #[dynamic] V: Value<R>, #[dynamic] R: RuntimeError> {
     fn eval(&self, expr: &E) -> Result<V, R>;
     fn fork(&self) -> Self;
     fn bind(&mut self, pattern: &P, value: V) -> Result<(), R>;
     fn value_from_string(str: String) -> Result<V, R>;
-    fn def(&mut self, name: &str, params: Vec<P>, cb: Box<dyn Fn(Box<dyn Context>, Vec<Box<dyn Value>>) -> Result<Box<dyn Value>, Box<dyn RuntimeError>>>) -> Result<(), R>;
+    fn def(&mut self, name: &str, params: Vec<(P, Option<E>)>, v: DefValue) -> Result<(), R>;
     fn apply(&self, name: &str, params: Vec<V>) -> Result<V, R>;
 }
 

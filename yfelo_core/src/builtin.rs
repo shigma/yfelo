@@ -4,6 +4,7 @@ use crate::directive::{DirectiveFactory as Directive, Node};
 use crate::language::{Context, Expr, Pattern, RuntimeError, SyntaxError};
 use crate::reader::{Reader, TagInfo};
 use crate::writer::render;
+use crate::DefValue;
 
 /// No-op directive.
 /// 
@@ -160,26 +161,17 @@ impl DefVar {
 #[derive(Debug, Clone, PartialEq)]
 pub struct DefFn {
     ident: String,
-    params: Vec<Box<dyn Pattern>>,
+    params: Vec<(Box<dyn Pattern>, Option<Box<dyn Expr>>)>,
     expr: Option<Box<dyn Expr>>,
 }
 
 impl DefFn {
     fn render(&self, ctx: &mut dyn Context, nodes: &Vec<Node>) -> Result<String, Box<dyn RuntimeError>> {
-        let Self { params, expr, .. } = self.clone();
-        let nodes = nodes.iter().map(|node| node.clone()).collect::<Vec<_>>();
-        ctx.def(&self.ident, self.params.clone(), Box::new(move |mut ctx, args| {
-            for (pat, value) in params.iter().zip(args) {
-                ctx.bind(pat, value)?;
-            }
-            match &expr {
-                Some(expr) => ctx.eval(expr),
-                None => {
-                    let output = render(ctx.as_mut(), &nodes)?;
-                    Ok(ctx.value_from_string(output)?)
-                },
-            }
-        }))?;
+        let Self { expr, .. } = self.clone();
+        ctx.def(&self.ident, self.params.clone(), match &expr {
+            Some(expr) => DefValue::Inline(expr.clone()),
+            None => DefValue::Block(nodes.clone()),
+        })?;
         Ok(String::new())
     }
 }
@@ -203,7 +195,13 @@ impl Directive for Def {
                 if let Ok(_) = reader.parse_punct(")") {
                     break;
                 }
-                params.push(reader.parse_pattern()?);
+                let pat = reader.parse_pattern()?;
+                let expr = if let Ok(_) = reader.parse_punct("=") {
+                    Some(reader.parse_expr()?)
+                } else {
+                    None
+                };
+                params.push((pat, expr));
                 if let Ok(_) = reader.parse_punct(",") {
                     continue;
                 }

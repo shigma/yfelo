@@ -5,6 +5,8 @@ use std::{fmt, ops};
 use dyn_std::{Downcast, Instance};
 use pest::iterators::{Pair, Pairs};
 use pest::Parser;
+use yfelo_core::writer::render;
+use yfelo_core::DefValue;
 
 use super::{SyntaxError, ValueFactory as _, factory};
 
@@ -381,14 +383,32 @@ impl factory::Context<Expr, Pattern, Value, RuntimeError> for Context {
         Ok(Value::String(str))
     }
 
-    fn def(&mut self, name: &str, _: Vec<Pattern>, cb: Box<dyn Fn(Box<dyn yfelo_core::Context>, Vec<Box<dyn yfelo_core::Value>>) -> Result<Box<dyn yfelo_core::Value>, Box<dyn yfelo_core::RuntimeError>>>) -> Result<(), RuntimeError> {
+    fn def(&mut self, name: &str, params: Vec<(Pattern, Option<Expr>)>, v: DefValue) -> Result<(), RuntimeError> {
         let inner = self.fork();
         self.f_store.insert(name.into(), Box::new(move |args| {
-            let inner = Box::new(Instance::new(inner.fork()));
-            let args = args.into_iter().map(|value| Box::new(Instance::new(value)) as Box<dyn yfelo_core::Value>).collect();
-            match cb(inner, args) {
-                Ok(value) => Ok(value.as_any_box().downcast::<Instance<Value, (RuntimeError, )>>().unwrap().0),
-                Err(err) => Err(err.as_any_box().downcast::<Instance<RuntimeError, ()>>().unwrap().0),
+            let mut inner = inner.fork();
+            for (index, (pattern, default)) in params.iter().enumerate() {
+                let value = match args.get(index) {
+                    Some(value) => value.clone(),
+                    None => match default {
+                        Some(expr) => inner.eval(expr)?,
+                        None => {
+                            return Err(RuntimeError {});
+                        },
+                    },
+                };
+                inner.bind(pattern, value)?;
+            }
+            match &v {
+                DefValue::Inline(expr) => {
+                    inner.eval(&expr.as_any().downcast_ref::<Instance<Expr, ()>>().unwrap().0)
+                },
+                DefValue::Block(nodes) => {
+                    match render(&mut Instance::new(inner), nodes) {
+                        Ok(value) => Ok(Value::String(value)),
+                        Err(e) => Err(e.as_any_box().downcast::<Instance<RuntimeError, ()>>().unwrap().0),
+                    }
+                },
             }
         }));
         Ok(())

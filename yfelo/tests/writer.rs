@@ -62,3 +62,16 @@ pub fn def_2() {
     ", l.as_ref(), &META_SYNTAX, ctx.as_mut()).unwrap();
     assert_eq!(output, "Hello, yfelo!");
 }
+
+#[test]
+pub fn def_default_1() {
+    let (y, l) = (YFELO, LANG);
+    let mut ctx: Box<dyn yfelo::Context> = Box::new(Instance::new(Context::new()));
+    let output = y.render("
+        {#def text(world = 'yfelo')}
+            Hello, {world}!
+        {/def}
+        {@apply text}
+    ", l.as_ref(), &META_SYNTAX, ctx.as_mut()).unwrap();
+    assert_eq!(output, "Hello, yfelo!");
+}
