@@ -1,11 +1,12 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
+use std::fmt::Debug;
 use std::{fmt, ops};
 
-use dyn_std::Downcast;
+use dyn_std::{Downcast, Instance};
 use pest::iterators::{Pair, Pairs};
 use pest::Parser;
 
-use super::{SyntaxError, ValueStatic as _, constructor};
+use super::{SyntaxError, ValueFactory as _, factory};
 
 #[derive(Parser)]
 #[grammar = "default.pest"]
@@ -13,7 +14,7 @@ struct DefaultParser;
 
 pub struct Language;
 
-impl constructor::Language<Expr, Pattern> for Language {
+impl factory::Language<Expr, Pattern> for Language {
     fn parse_expr(input: &str) -> Result<(Expr, usize), SyntaxError> {
         match DefaultParser::parse(Rule::expr, input) {
             Ok(pairs) => {
@@ -113,7 +114,7 @@ pub enum Expr {
     Binary(Box<Expr>, BinaryOp, Box<Expr>),
 }
 
-impl constructor::Expr for Expr {}
+impl factory::Expr for Expr {}
 
 macro_rules! left_assoc {
     ($curr:ident, $inner:ident) => {
@@ -243,7 +244,7 @@ pub enum Pattern {
     Ident(String),
 }
 
-impl constructor::Pattern for Pattern {}
+impl factory::Pattern for Pattern {}
 
 impl Pattern {
     fn from(pair: Pair<Rule>) -> Self {
@@ -261,15 +262,16 @@ impl<T: Into<String>> From<T> for Pattern {
     }
 }
 
-#[derive(Debug, Clone)]
 pub struct Context {
     inner: Value,
+    f_store: HashMap<String, Box<dyn Fn(Vec<Value>) -> Result<Value, RuntimeError>>>,
 }
 
 impl Context {
     pub fn new() -> Self {
         Self {
             inner: Value::Object(BTreeMap::new()),
+            f_store: HashMap::new(),
         }
     }
 
@@ -347,7 +349,7 @@ impl Context {
     }
 }
 
-impl constructor::Context<Expr, Pattern, Value, RuntimeError> for Context {
+impl factory::Context<Expr, Pattern, Value, RuntimeError> for Context {
     fn eval<'i>(&'i self, expr: &'i Expr) -> Result<Value, RuntimeError> {
         let expr = expr.downcast_ref::<Expr>().unwrap();
         Ok(self._eval(expr)?)
@@ -356,6 +358,7 @@ impl constructor::Context<Expr, Pattern, Value, RuntimeError> for Context {
     fn fork(&self) -> Self {
         Context {
             inner: self.inner.clone(),
+            f_store: HashMap::new(), // fixme clone
         }
     }
 
@@ -374,6 +377,21 @@ impl constructor::Context<Expr, Pattern, Value, RuntimeError> for Context {
 
     fn new_ident(name: &str) -> Result<Expr, RuntimeError> {
         Ok(Expr::Ident(name.into()))
+    }
+
+    fn new_apply(name: &str, params: Vec<Expr>) -> Result<Expr, RuntimeError> {
+        Ok(Expr::Apply(Box::new(Expr::Ident(name.into())), params))
+    }
+
+    fn bind_fn(&mut self, name: &str, _: Vec<Pattern>, cb: Box<dyn Fn(Vec<Box<dyn yfelo_core::Value>>) -> Result<Box<dyn yfelo_core::Value>, Box<dyn yfelo_core::RuntimeError>>>) -> Result<(), RuntimeError> {
+        self.f_store.insert(name.into(), Box::new(move |args| {
+            let args = args.into_iter().map(|value| Box::new(Instance::new(value)) as Box<dyn yfelo_core::Value>).collect();
+            match cb(args) {
+                Ok(value) => Ok(value.as_any_box().downcast::<Instance<Value, (RuntimeError, )>>().unwrap().0),
+                Err(err) => Err(err.as_any_box().downcast::<Instance<RuntimeError, ()>>().unwrap().0),
+            }
+        }));
+        Ok(())
     }
 }
 
@@ -515,7 +533,7 @@ impl fmt::Display for Value {
     }
 }
 
-impl constructor::Value<RuntimeError> for Value {
+impl factory::Value<RuntimeError> for Value {
     fn to_string(&self) -> Result<String, RuntimeError> {
         match &self {
             Value::Null => Ok("".to_string()),
@@ -555,4 +573,4 @@ impl constructor::Value<RuntimeError> for Value {
 #[derive(Debug, Clone)]
 pub struct RuntimeError {}
 
-impl constructor::RuntimeError for RuntimeError {}
+impl factory::RuntimeError for RuntimeError {}

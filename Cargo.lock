@@ -143,9 +143,9 @@ dependencies = [
 
 [[package]]
 name = "dyn_derive"
-version = "0.2.5"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "142a6b3bf8d78effcde1903b401b54e6c4bdd2a0d617c12254ba37afe6800e4a"
+checksum = "2754576ad40ad6212a9404b8952a1ac5a6784ff6c9ecb8b6d9fd0edfe0fe0c89"
 dependencies = [
  "dyn_std",
  "proc-macro2",
@@ -155,9 +155,9 @@ dependencies = [
 
 [[package]]
 name = "dyn_std"
-version = "0.2.3"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a55bc3d4b143b5b7d348bd20ebea48a0493335212387641d5b7f4f9e5fd448e3"
+checksum = "c224dedee0e7805eb944910c94af84609b979f53896effd58b05afd4d4c3e657"
 
 [[package]]
 name = "generic-array"

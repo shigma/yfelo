@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use crate::directive::{DirectiveStatic as Directive, Node};
+use crate::directive::{DirectiveFactory as Directive, Node};
 use crate::language::{Context, Expr, Pattern, RuntimeError, SyntaxError};
 use crate::reader::{Reader, TagInfo};
 use crate::writer::Writer;

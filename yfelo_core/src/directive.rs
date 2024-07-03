@@ -31,9 +31,9 @@ pub trait Directive: Debug + PartialEq {
     fn render<'i>(&self, writer: &Writer<'i>, children: &'i Vec<Node>, ctx: &mut dyn Context) -> Result<String, Box<dyn RuntimeError>>;
 }
 
-impl<T: 'static + DirectiveStatic> Directive for PhantomData<T> {
+impl<T: 'static + DirectiveFactory> Directive for PhantomData<T> {
     fn open(&self, reader: &mut Reader, info: &TagInfo) -> Result<Box<dyn Directive>, SyntaxError> {
-        Ok(Box::new(Instance::new(<T as DirectiveStatic>::open(reader, info)?)))
+        Ok(Box::new(Instance::new(<T as DirectiveFactory>::open(reader, info)?)))
     }
 
     fn close(&mut self, _: &mut Reader, _: &TagInfo) -> Result<(), SyntaxError> {

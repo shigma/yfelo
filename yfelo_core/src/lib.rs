@@ -12,8 +12,8 @@ pub use directive::*;
 pub use language::*;
 
 pub mod builtin;
-pub mod constructor;
 pub mod directive;
+pub mod factory;
 pub mod language;
 pub mod reader;
 pub mod writer;
@@ -41,11 +41,11 @@ impl Yfelo {
         }
     }
 
-    pub fn add_directive<D: DirectiveStatic>(&mut self, name: impl Into<String>) {
+    pub fn add_directive<D: DirectiveFactory>(&mut self, name: impl Into<String>) {
         self.dirs.insert(name.into(), Box::new(PhantomData::<D>));
     }
 
-    pub fn add_language<E: ExprStatic, P: PatternStatic, T: LanguageStatic<E, P>>(&mut self, name: impl Into<String>) {
+    pub fn add_language<E: ExprFactory, P: PatternFactory, T: LanguageFactory<E, P>>(&mut self, name: impl Into<String>) {
         self.langs.insert(name.into(), Box::new(PhantomData::<(T, E, P)>));
     }
 
