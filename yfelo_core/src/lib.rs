@@ -11,6 +11,7 @@ pub use directive::*;
 pub use language::*;
 use writer::render;
 
+/// Built-in directives of Yfelo language.
 pub mod builtin;
 pub mod directive;
 pub mod factory;

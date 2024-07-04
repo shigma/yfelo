@@ -22,20 +22,20 @@ const META_SYNTAX: MetaSyntax = MetaSyntax {
 };
 
 macro_rules! ident {
-    ($v:expr $(,)?) => {
-        Expr::Ident($v.into())
+    ($v:expr, $range:tt $(,)?) => {
+        Expr::Ident($v.into(), Some($range))
     };
 }
 
 macro_rules! apply {
-    ($lhs:expr, $rhs:expr $(,)?) => {
-        Expr::Apply(Box::from($lhs), vec![$rhs])
+    ($lhs:expr, $rhs:expr, $range:tt $(,)?) => {
+        Expr::Apply(Box::from($lhs), vec![$rhs], Some($range))
     };
 }
 
 macro_rules! binary {
-    ($lhs:expr, $op:ident, $rhs:expr $(,)?) => {
-        Expr::Binary(Box::from($lhs), BinaryOp::$op, Box::from($rhs))
+    ($lhs:expr, $op:ident, $rhs:expr, $range:tt $(,)?) => {
+        Expr::Binary(Box::from($lhs), BinaryOp::$op, Box::from($rhs), Some($range))
     };
 }
 
@@ -45,7 +45,7 @@ pub fn basic_1() {
     let nodes = y.parse("(Hello) {world}!", l.as_ref(), &META_SYNTAX).unwrap();
     assert_eq!(nodes, vec![
         Node::Text("(Hello) ".into()),
-        Node::Expr(Box::from(Instance::new(ident!("world")))),
+        Node::Expr(Box::from(Instance::new(ident!("world", (9, 14))))),
         Node::Text("!".into()),
     ]);
 }
@@ -55,7 +55,7 @@ pub fn basic_2() {
     let (y, l) = (YFELO, LANG);
     let nodes = y.parse("{world}", l.as_ref(), &META_SYNTAX).unwrap();
     assert_eq!(nodes, vec![
-        Node::Expr(Box::from(Instance::new(ident!("world")))),
+        Node::Expr(Box::from(Instance::new(ident!("world", (1, 6))))),
     ]);
 }
 
@@ -65,8 +65,9 @@ pub fn basic_3() {
     let nodes = y.parse("{w(or[ld])}", l.as_ref(), &META_SYNTAX).unwrap();
     assert_eq!(nodes, vec![
         Node::Expr(Box::from(Instance::new(apply!(
-            ident!("w"),
-            binary!(ident!("or"), Index, ident!("ld")),
+            ident!("w", (1, 2)),
+            binary!(ident!("or", (3, 5)), Index, ident!("ld", (6, 8)), (5, 9)),
+            (2, 10),
         )))),
     ]);
 }
@@ -81,9 +82,10 @@ pub fn basic_4() {
     let nodes = y.parse("[w[or][ld]]!", l.as_ref(), &meta).unwrap();
     assert_eq!(nodes, vec![
         Node::Expr(Box::from(Instance::new(binary!(
-            binary!(ident!("w"), Index, ident!("or")),
+            binary!(ident!("w", (1, 2)), Index, ident!("or", (3, 5)), (2, 6)),
             Index,
-            ident!("ld"),
+            ident!("ld", (7, 9)),
+            (6, 10),
         )))),
         Node::Text("!".into()),
     ]);

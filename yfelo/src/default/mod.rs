@@ -18,12 +18,12 @@ pub use value::*;
 pub struct Language;
 
 impl factory::Language<Expr, Pattern> for Language {
-    fn parse_expr(input: &str) -> Result<(Expr, usize), SyntaxError> {
-        Expr::parse(input)
+    fn parse_expr(input: &str, offset: usize) -> Result<(Expr, usize), SyntaxError> {
+        Expr::parse(input, offset)
     }
 
-    fn parse_pattern(input: &str) -> Result<(Pattern, usize), SyntaxError> {
-        Pattern::parse(input)
+    fn parse_pattern(input: &str, offset: usize) -> Result<(Pattern, usize), SyntaxError> {
+        Pattern::parse(input, offset)
     }
 }
 

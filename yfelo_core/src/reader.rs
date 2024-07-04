@@ -104,7 +104,7 @@ impl<'i> Reader<'i> {
     }
 
     pub fn parse_expr(&mut self) -> Result<Box<dyn Expr>, SyntaxError> {
-        match self.lang.parse_expr(self.input) {
+        match self.lang.parse_expr(self.input, self.offset) {
             Ok((expr, offset)) => {
                 self.skip(offset);
                 self.trim_start();
@@ -118,7 +118,7 @@ impl<'i> Reader<'i> {
     }
 
     pub fn parse_pattern(&mut self) -> Result<Box<dyn Pattern>, SyntaxError> {
-        match self.lang.parse_pattern(self.input) {
+        match self.lang.parse_pattern(self.input, self.offset) {
             Ok((expr, offset)) => {
                 self.skip(offset);
                 self.trim_start();

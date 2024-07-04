@@ -10,7 +10,7 @@ pub enum UnaryOp {
 }
 
 impl UnaryOp {
-    pub fn from(pair: Pair<Rule>) -> Self {
+    pub fn from(pair: &Pair<Rule>) -> Self {
         match pair.as_str() {
             "!" => Self::Not,
             "+" => Self::Pos,
@@ -45,7 +45,7 @@ pub enum BinaryOp {
 }
 
 impl BinaryOp {
-    pub fn from(pair: Pair<Rule>) -> Self {
+    pub fn from(pair: &Pair<Rule>) -> Self {
         match pair.as_str() {
             "**" => Self::Pow,
             "*" => Self::Mul,

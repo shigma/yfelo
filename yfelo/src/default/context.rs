@@ -64,9 +64,9 @@ impl Context {
 impl factory::Context<Expr, Pattern, Value, RuntimeError> for Context {
     fn eval(&self, expr: &Expr) -> Result<Value, RuntimeError> {
         Ok(match expr {
-            Expr::Number(n) => Value::Number(n.clone()),
-            Expr::String(s) => Value::String(s.clone()),
-            Expr::Ident(ident) => {
+            Expr::Number(n, _) => Value::Number(*n),
+            Expr::String(s, _) => Value::String(s.clone()),
+            Expr::Ident(ident, _) => {
                 if ident == "true" {
                     Value::Bool(true)
                 } else if ident == "false" {
@@ -77,21 +77,21 @@ impl factory::Context<Expr, Pattern, Value, RuntimeError> for Context {
                     self.inner[ident].clone()
                 }
             },
-            Expr::Array(vec) => {
+            Expr::Array(vec, _) => {
                 Value::Array(vec.iter().map(|expr| {
                     self.eval(expr)
                 }).collect::<Result<Vec<_>, _>>()?)
             },
-            Expr::Apply(func, args) => {
+            Expr::Apply(func, args, _) => {
                 let func = self.eval(func)?;
                 // todo: clone
                 self.apply(&func, args.clone(), &mut |_| Ok(String::new()))?
             },
-            Expr::Unary(op, expr) => {
+            Expr::Unary(op, expr, _) => {
                 let value = self.eval(expr)?;
                 op.eval(value)?
             },
-            Expr::Binary(lhs, op, rhs) => {
+            Expr::Binary(lhs, op, rhs, _) => {
                 let lhs = self.eval(lhs)?;
                 let rhs = self.eval(rhs)?;
                 op.eval(lhs, rhs)?
@@ -107,7 +107,7 @@ impl factory::Context<Expr, Pattern, Value, RuntimeError> for Context {
 
     fn bind(&mut self, pattern: &Pattern, value: Value) -> Result<(), RuntimeError> {
         match pattern {
-            Pattern::Ident(ident) => {
+            Pattern::Ident(ident, _) => {
                 self.inner[ident] = value;
                 Ok(())
             },

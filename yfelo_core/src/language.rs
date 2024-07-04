@@ -18,8 +18,8 @@ pub enum Error {
 
 #[dyn_trait]
 pub trait Language<#[dynamic] E: Expr, #[dynamic] P: Pattern> {
-    fn parse_expr(input: &str) -> Result<(E, usize), SyntaxError>;
-    fn parse_pattern(input: &str) -> Result<(P, usize), SyntaxError>;
+    fn parse_expr(input: &str, offset: usize) -> Result<(E, usize), SyntaxError>;
+    fn parse_pattern(input: &str, offset: usize) -> Result<(P, usize), SyntaxError>;
 }
 
 #[dyn_trait]
@@ -57,13 +57,13 @@ pub trait Value<#[dynamic] R: RuntimeError>: Debug + Clone + PartialEq {
 pub trait RuntimeError: Debug + Clone {}
 
 impl<E: ExprFactory, P: PatternFactory, T: LanguageFactory<E, P>> Language for PhantomData<(T, E, P)> {
-    fn parse_expr(&self, input: &str) -> Result<(Box<dyn Expr>, usize), SyntaxError> {
-        let (a, b) = <T as LanguageFactory<E, P>>::parse_expr(input)?;
+    fn parse_expr(&self, input: &str, offset: usize) -> Result<(Box<dyn Expr>, usize), SyntaxError> {
+        let (a, b) = <T as LanguageFactory<E, P>>::parse_expr(input, offset)?;
         Ok((Box::new(Instance::new(a)), b))
     }
 
-    fn parse_pattern(&self, input: &str) -> Result<(Box<dyn Pattern>, usize), SyntaxError> {
-        let (a, b) = <T as LanguageFactory<E, P>>::parse_pattern(input)?;
+    fn parse_pattern(&self, input: &str, offset: usize) -> Result<(Box<dyn Pattern>, usize), SyntaxError> {
+        let (a, b) = <T as LanguageFactory<E, P>>::parse_pattern(input, offset)?;
         Ok((Box::new(Instance::new(a)), b))
     }
 }
