@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 use std::collections::hash_map::Entry;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::rc::{Rc, Weak};
 
 use dyn_std::Instance;
@@ -29,7 +29,7 @@ impl ContextInner {
     fn set(&self, key: String, value: Value) -> Result<(), RuntimeError> {
         match self.store.borrow_mut().entry(key) {
             Entry::Vacant(entry) => {
-                entry.insert(Rc::new(value));
+                entry.insert(value.into_rc());
                 Ok(())
             },
             Entry::Occupied(entry) => Err(RuntimeError {
@@ -87,11 +87,7 @@ impl Context {
     }
 
     fn apply(&self, f: &Value, args: Vec<Expr>, init: &mut dyn FnMut(&mut dyn yfelo_core::Context) -> Result<String, Box<dyn yfelo_core::RuntimeError>>) -> Result<Value, RuntimeError> {
-        let Value::Lazy(params, definition) = f else {
-            return Err(RuntimeError {
-                message: format!("expect function, found {}", f.type_name()),
-            });
-        };
+        let (params, definition) = f.as_abs()?;
         let args = args.iter()
             .map(|expr| self.eval(expr))
             .collect::<Result<Vec<_>, _>>()?;
@@ -121,8 +117,24 @@ impl factory::Context<Expr, Pattern, Value, RuntimeError> for Context {
             },
             Expr::Array(vec, _) => {
                 Value::Array(vec.iter().map(|expr| {
-                    self.eval(expr).map(|v| Rc::new(v))
+                    self.eval(expr).map(Value::into_rc)
                 }).collect::<Result<Vec<_>, _>>()?)
+            },
+            Expr::Object(entries, _) => {
+                let mut map = BTreeMap::new();
+                for (key, value) in entries {
+                    let value = self.eval(value.as_ref().unwrap())?.into_rc();
+                    match key {
+                        Expr::Ident(key, _) => {
+                            map.insert(key.into(), value);
+                        },
+                        expr => {
+                            let key = self.eval(expr)?;
+                            map.insert(key.as_string()?, value);
+                        },
+                    }
+                }
+                Value::Object(map)
             },
             Expr::Apply(func, args, _) => {
                 let func = self.eval(func)?;
@@ -137,6 +149,11 @@ impl factory::Context<Expr, Pattern, Value, RuntimeError> for Context {
                 let lhs = self.eval(lhs)?;
                 let rhs = self.eval(rhs)?;
                 op.eval(lhs, rhs)?
+            },
+            Expr::Index(lhs, rhs, _, _) => {
+                let lhs = self.eval(lhs)?;
+                let rhs = self.eval(rhs)?;
+                lhs.get(&rhs)?
             },
         })
     }
@@ -158,7 +175,7 @@ impl factory::Context<Expr, Pattern, Value, RuntimeError> for Context {
     }
 
     fn def(&mut self, name: &str, params: Vec<(Pattern, Option<Expr>)>, definition: Definition) -> Result<(), RuntimeError> {
-        self.0.set(name.into(), Value::Lazy(params, definition))?;
+        self.0.set(name.into(), Value::Abs(params, definition))?;
         Ok(())
     }
 

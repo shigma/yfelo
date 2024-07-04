@@ -17,8 +17,11 @@ expr_list = _{ (expr ~ ",")* ~ expr? }
 
 prefix = { "!" | "-" | "+" }
 suffix = { "(" ~ expr_list ~ ")" | "[" ~ expr ~ "]" | "." ~ ident }
-atom = { number | string | ident | array | "(" ~ expr ~ ")" }
+literal = { number | string | ident | array | object | "(" ~ expr ~ ")" }
 array = { "[" ~ expr_list ~ "]" }
+object = { "{" ~ (entry ~ ",")* ~ entry? ~ "}" }
+
+entry = { (number | string | ident | "[" ~ expr ~ "]") ~ ":" ~ expr | ident }
 
 pow = { "**" }
 mul = { "*" | "/" | "%" }
@@ -32,7 +35,7 @@ bitor = { "|" }
 and = { "&&" }
 or = { "||" }
 
-expr_unary = { prefix* ~ atom ~ suffix* }
+expr_unary = { prefix* ~ literal ~ suffix* }
 expr_pow = { expr_unary ~ (pow ~ expr_unary)* }
 expr_mul = { expr_pow ~ (mul ~ expr_pow)* }
 expr_add = { expr_mul ~ (add ~ expr_mul)* }

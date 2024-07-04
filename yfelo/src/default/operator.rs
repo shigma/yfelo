@@ -1,6 +1,4 @@
-use pest::iterators::Pair;
-
-use super::{parser::Rule, RuntimeError, Value};
+use super::{RuntimeError, Value};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnaryOp {
@@ -10,8 +8,8 @@ pub enum UnaryOp {
 }
 
 impl UnaryOp {
-    pub fn from(pair: &Pair<Rule>) -> Self {
-        match pair.as_str() {
+    pub fn from(input: &str) -> Self {
+        match input {
             "!" => Self::Not,
             "+" => Self::Pos,
             "-" => Self::Neg,
@@ -41,12 +39,11 @@ pub enum BinaryOp {
     BitOr,
     And,
     Or,
-    Index,
 }
 
 impl BinaryOp {
-    pub fn from(pair: &Pair<Rule>) -> Self {
-        match pair.as_str() {
+    pub fn from(input: &str) -> Self {
+        match input {
             "**" => Self::Pow,
             "*" => Self::Mul,
             "/" => Self::Div,
@@ -76,11 +73,12 @@ impl BinaryOp {
             Self::Mul => Value::Number(lhs.as_number()? * rhs.as_number()?),
             Self::Div => Value::Number(lhs.as_number()? / rhs.as_number()?),
             Self::Mod => Value::Number(lhs.as_number()? % rhs.as_number()?),
-            Self::Add => {
-                match (lhs, rhs) {
-                    (Value::String(lhs), Value::String(rhs)) => Value::String(lhs + &rhs),
-                    (lhs, rhs) => Value::Number(lhs.as_number()? + rhs.as_number()?),
-                }
+            Self::Add => match lhs.deref() {
+                Value::String(lhs) => Value::String(lhs.clone() + &rhs.as_string()?),
+                Value::Number(lhs) => Value::Number(*lhs + rhs.as_number()?),
+                _ => return Err(RuntimeError {
+                    message: format!("cannot add {} and {}", lhs.type_name(), rhs.type_name()),
+                }),
             },
             Self::Sub => Value::Number(lhs.as_number()? - rhs.as_number()?),
             Self::Shl => Value::Number(((lhs.as_number()? as i64) << (rhs.as_number()? as i64)) as f64),
@@ -96,7 +94,6 @@ impl BinaryOp {
             Self::BitOr => Value::Number((lhs.as_number()? as i64 | rhs.as_number()? as i64) as f64),
             Self::And => Value::Bool(lhs.as_bool()? && rhs.as_bool()?),
             Self::Or => Value::Bool(lhs.as_bool()? || rhs.as_bool()?),
-            Self::Index => lhs.get(&rhs)?,
         })
     }
 }

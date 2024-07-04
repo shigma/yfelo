@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, ops::Deref};
 use std::rc::Rc;
 use std::fmt;
 
@@ -14,11 +14,18 @@ pub enum Value {
     String(String),
     Array(Vec<Rc<Value>>),
     Object(BTreeMap<String, Rc<Value>>),
-    Lazy(Vec<(Pattern, Option<Expr>)>, Definition),
+    Abs(Vec<(Pattern, Option<Expr>)>, Definition),
     Ref(Rc<Value>),
 }
 
 impl Value {
+    pub fn deref(&self) -> &Self {
+        match &self {
+            Self::Ref(v) => v.deref(),
+            _ => self,
+        }
+    }
+
     pub fn type_name(&self) -> &'static str {
         match &self {
             Self::Null => "null",
@@ -27,26 +34,25 @@ impl Value {
             Self::String(_) => "string",
             Self::Array(_) => "array",
             Self::Object(_) => "object",
-            Self::Lazy(_, _) => "function",
+            Self::Abs(_, _) => "function",
             Self::Ref(v) => v.type_name(),
         }
     }
 
     pub fn as_number(&self) -> Result<f64, RuntimeError> {
-        match &self {
+        match self.deref() {
             Self::Number(n) => Ok(*n),
-            Self::Bool(b) => Ok(if *b { 1. } else { 0. }),
-            Self::Ref(v) => v.as_number(),
+            // Self::Bool(b) => Ok(if *b { 1. } else { 0. }),
             _ => Err(RuntimeError {
-                message: format!("expect number or bool, found {}", self.type_name()),
+                message: format!("expect number, found {}", self.type_name()),
             }),
         }
     }
 
-    pub fn as_str(&self) -> Result<&str, RuntimeError> {
-        match &self {
-            Self::String(s) => Ok(s),
-            Self::Ref(v) => v.as_str(),
+    pub fn as_string(&self) -> Result<String, RuntimeError> {
+        match self.deref() {
+            Self::Number(n) => Ok(n.to_string()),
+            Self::String(s) => Ok(s.clone()),
             _ => Err(RuntimeError {
                 message: format!("expect string, found {}", self.type_name()),
             }),
@@ -54,13 +60,28 @@ impl Value {
     }
 
     pub fn as_bool(&self) -> Result<bool, RuntimeError> {
-        match &self {
+        match self.deref() {
             Self::Null => Ok(false),
             Self::Bool(b) => Ok(*b),
             Self::Number(n) => Ok(*n != 0.),
             Self::String(s) => Ok(!s.is_empty()),
-            Self::Ref(v) => v.as_bool(),
             _ => Ok(true),
+        }
+    }
+
+    pub fn as_abs(&self) -> Result<(&Vec<(Pattern, Option<Expr>)>, &Definition), RuntimeError> {
+        match self.deref() {
+            Self::Abs(params, definition) => Ok((params, definition)),
+            _ => Err(RuntimeError {
+                message: format!("expect function, found {}", self.type_name()),
+            }),
+        }
+    }
+
+    pub fn into_rc(self) -> Rc<Self> {
+        match self {
+            Self::Ref(v) => v,
+            v => Rc::new(v),
         }
     }
 
@@ -68,7 +89,7 @@ impl Value {
         match self {
             Self::Ref(v) => v.get(key),
             Self::Object(map) => {
-                match map.get(key.as_str()?) {
+                match map.get(&key.as_string()?) {
                     Some(rc) => Ok(Self::Ref(rc.clone())),
                     None => Ok(Self::Null),
                 }
@@ -171,7 +192,7 @@ impl fmt::Display for Value {
                 }
                 write!(f, "}}")
             },
-            Self::Lazy(_, _) => {
+            Self::Abs(_, _) => {
                 write!(f, "fn")
             },
             Self::Ref(v) => {
@@ -183,7 +204,7 @@ impl fmt::Display for Value {
 
 impl factory::Value<RuntimeError> for Value {
     fn to_string(&self) -> Result<String, RuntimeError> {
-        match &self {
+        match self.deref() {
             Self::Null => Ok("".to_string()),
             // TODO partial object
             _ => Ok(format!("{}", self)),
@@ -195,7 +216,7 @@ impl factory::Value<RuntimeError> for Value {
     }
 
     fn as_entries(&self) -> Result<Vec<(Self, Self)>, RuntimeError> {
-        match &self {
+        match self.deref() {
             Self::Array(vec) => Ok(vec.iter().enumerate().map(|(k, v)| {
                 let k = Self::Number(k as f64);
                 (Self::Ref(v.clone()), k)
