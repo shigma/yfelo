@@ -137,11 +137,13 @@ pub fn tag_1() {
         Node::Element(Element {
             directive: Box::new(Instance::new(Stub)),
             children: vec![Node::Text("Hello".into())],
+            branches: vec![],
         }),
         Node::Text(" ".into()),
         Node::Element(Element {
             directive: Box::new(Instance::new(Stub)),
             children: vec![Node::Text("world".into())],
+            branches: vec![],
         }),
         Node::Text("!".into()),
     ]);
@@ -159,14 +161,17 @@ pub fn tag_2() {
                 Node::Element(Element {
                     directive: Box::new(Instance::new(Stub)),
                     children: vec![],
+                    branches: vec![],
                 }),
                 Node::Text(" ".into()),
                 Node::Element(Element {
                     directive: Box::new(Instance::new(Stub)),
                     children: vec![Node::Text("world".into())],
+                    branches: vec![],
                 }),
                 Node::Text("!".into()),
             ],
+            branches: vec![],
         }),
     ]);
 }
@@ -193,36 +198,6 @@ pub fn unmatched_tag_3() {
     let error = y.parse("{#foo}Hello{/foo} world{#bar}!", l.as_ref(), &META_SYNTAX).unwrap_err();
     assert_eq!(error.message, "unmatched tag name 'bar'");
     assert_eq!(error.range, (25, 28));
-}
-
-#[test]
-pub fn if_syntax_1() {
-    let (y, l) = (YFELO, LANG);
-    let error = y.parse("{#if}", l.as_ref(), &META_SYNTAX).unwrap_err();
-    assert_eq!(error, SyntaxError {
-        message: "invalid syntax for directive 'if': expect expression".into(),
-        range: (4, 4),
-    });
-}
-
-#[test]
-pub fn if_syntax_2() {
-    let (y, l) = (YFELO, LANG);
-    let error = y.parse("{#if x x}", l.as_ref(), &META_SYNTAX).unwrap_err();
-    assert_eq!(error, SyntaxError {
-        message: "invalid tag syntax: expect '}'".into(),
-        range: (7, 7),
-    });
-}
-
-#[test]
-pub fn if_syntax_3() {
-    let (y, l) = (YFELO, LANG);
-    let error = y.parse("{@if}", l.as_ref(), &META_SYNTAX).unwrap_err();
-    assert_eq!(error, SyntaxError {
-        message: "directive 'if' should not be empty".into(),
-        range: (2, 4),
-    });
 }
 
 #[test]

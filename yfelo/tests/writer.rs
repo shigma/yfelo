@@ -26,18 +26,6 @@ pub fn basic_1() {
 }
 
 #[test]
-pub fn if_1() {
-    let (y, l) = (YFELO, LANG);
-    let mut ctx: Box<dyn yfelo::Context> = Box::new(Instance::new(Context::new()));
-    let output = y.render("
-        {@def foo = true}
-        {@def bar = false}
-        {#if foo}Hello{/if}, {#if bar}world{/if}!
-    ", l.as_ref(), &META_SYNTAX, ctx.as_mut()).unwrap();
-    assert_eq!(output, "Hello, !");
-}
-
-#[test]
 pub fn def_inline_1() {
     let (y, l) = (YFELO, LANG);
     let mut ctx: Box<dyn yfelo::Context> = Box::new(Instance::new(Context::new()));

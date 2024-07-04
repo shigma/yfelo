@@ -54,11 +54,10 @@ impl Context {
             .map(|expr| self.eval(expr))
             .collect::<Result<Vec<_>, _>>()?;
         let mut inst = Instance::new(self.preapply(params, args)?);
-        let value = init(&mut inst).map_err(|e| {
+        init(&mut inst).map_err(|e| {
             e.as_any_box().downcast::<Instance<RuntimeError, ()>>().unwrap().0
         })?;
-        inst.0.postapply(definition)?;
-        Ok(Value::String(value))
+        inst.0.postapply(definition)
     }
 }
 

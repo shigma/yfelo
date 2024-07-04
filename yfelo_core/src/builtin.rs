@@ -1,10 +1,12 @@
 use std::fmt::Debug;
 
+use dyn_std::Instance;
+
 use crate::directive::{DirectiveFactory as Directive, Node};
 use crate::language::{Context, Expr, Pattern, RuntimeError, SyntaxError};
 use crate::reader::{Reader, TagInfo};
 use crate::writer::render;
-use crate::Definition;
+use crate::{Definition, Element};
 
 /// No-op directive.
 /// 
@@ -27,8 +29,8 @@ impl Directive for Stub {
         Ok(Self)
     }
 
-    fn render(&self, ctx: &mut dyn Context, children: &Vec<Node>) -> Result<String, Box<dyn RuntimeError>> {
-        render(ctx, children)
+    fn render(&self, ctx: &mut dyn Context, nodes: &[Node], _: &[Element]) -> Result<String, Box<dyn RuntimeError>> {
+        render(ctx, nodes)
     }
 }
 
@@ -52,9 +54,32 @@ impl Directive for If {
         Ok(Self { expr })
     }
 
-    fn render(&self, ctx: &mut dyn Context, children: &Vec<Node>) -> Result<String, Box<dyn RuntimeError>> {
+    fn branch(tags: &[TagInfo], info: &TagInfo) -> Result<(), SyntaxError> {
+        if let Some(prev) = tags.last() {
+            if prev.name == "else" {
+                return Err(SyntaxError {
+                    message: format!("'{}' cannot come after 'else'", info.name),
+                    range: info.range,
+                })
+            }
+        }
+        Ok(())
+    }
+
+    fn render(&self, ctx: &mut dyn Context, nodes: &[Node], branches: &[Element]) -> Result<String, Box<dyn RuntimeError>> {
         if ctx.eval(&self.expr)?.as_bool()? {
-            return render(ctx, children);
+            return render(ctx, nodes);
+        }
+        for branch in branches {
+            if let Some(instance) = branch.directive.as_any().downcast_ref::<Instance<If, ()>>() {
+                if ctx.eval(&instance.0.expr)?.as_bool()? {
+                    return render(ctx, &branch.children);
+                }
+            } else if let Some(_) = branch.directive.as_any().downcast_ref::<Instance<Stub, ()>>() {
+                return render(ctx, &branch.children);
+            } else {
+                panic!("unexpected directive instance: {:?}", branch.directive)
+            }
         }
         Ok(String::new())
     }
@@ -88,7 +113,7 @@ impl Directive for For {
         Ok(Self { vpat, kpat, expr })
     }
 
-    fn render(&self, ctx: &mut dyn Context, children: &Vec<Node>) -> Result<String, Box<dyn RuntimeError>> {
+    fn render(&self, ctx: &mut dyn Context, nodes: &[Node], _: &[Element]) -> Result<String, Box<dyn RuntimeError>> {
         let entries = ctx.eval(&self.expr)?.as_entries()?;
         let mut output = String::new();
         for entry in entries {
@@ -97,7 +122,7 @@ impl Directive for For {
             if let Some(kpat) = &self.kpat {
                 inner.bind(&kpat, entry.1)?;
             }
-            output += &render(inner.as_mut(), children)?;
+            output += &render(inner.as_mut(), nodes)?;
         }
         Ok(output)
     }
@@ -138,7 +163,7 @@ pub struct DefVar {
 }
 
 impl DefVar {
-    fn render(&self, ctx: &mut dyn Context, _: &Vec<Node>) -> Result<String, Box<dyn RuntimeError>> {
+    fn render(&self, ctx: &mut dyn Context, _: &[Node], _: &[Element]) -> Result<String, Box<dyn RuntimeError>> {
         let value = ctx.eval(&self.expr)?;
         ctx.bind(&self.pat, value)?;
         Ok(String::new())
@@ -166,11 +191,11 @@ pub struct DefFn {
 }
 
 impl DefFn {
-    fn render(&self, ctx: &mut dyn Context, nodes: &Vec<Node>) -> Result<String, Box<dyn RuntimeError>> {
+    fn render(&self, ctx: &mut dyn Context, nodes: &[Node], _: &[Element]) -> Result<String, Box<dyn RuntimeError>> {
         let Self { expr, .. } = self.clone();
         ctx.def(&self.ident, self.params.clone(), match &expr {
             Some(expr) => Definition::Inline(expr.clone()),
-            None => Definition::Block(nodes.clone()),
+            None => Definition::Block(nodes.into()),
         })?;
         Ok(String::new())
     }
@@ -229,10 +254,10 @@ impl Directive for Def {
         })
     }
 
-    fn render(&self, ctx: &mut dyn Context, nodes: &Vec<Node>) -> Result<String, Box<dyn RuntimeError>> {
+    fn render(&self, ctx: &mut dyn Context, nodes: &[Node], branches: &[Element]) -> Result<String, Box<dyn RuntimeError>> {
         match self {
-            Self::Var(def) => def.render(ctx, nodes),
-            Self::Fn(def) => def.render(ctx, nodes),
+            Self::Var(def) => def.render(ctx, nodes, branches),
+            Self::Fn(def) => def.render(ctx, nodes, branches),
         }
     }
 }
@@ -275,7 +300,7 @@ impl Directive for Apply {
         Ok(Self { name, args })
     }
 
-    fn render(&self, ctx: &mut dyn Context, nodes: &Vec<Node>) -> Result<String, Box<dyn RuntimeError>> {
+    fn render(&self, ctx: &mut dyn Context, nodes: &[Node], _: &[Element]) -> Result<String, Box<dyn RuntimeError>> {
         let value = ctx.apply(&self.name, self.args.clone(), &mut |ctx| {
             render(ctx, nodes)
         })?;

@@ -12,6 +12,17 @@ use crate::reader::{TagInfo, Reader};
 pub struct Element {
     pub directive: Box<dyn Directive>,
     pub children: Vec<Node>,
+    pub branches: Vec<Element>,
+}
+
+impl Element {
+    pub fn new(directive: Box<dyn Directive>) -> Self {
+        Self {
+            directive,
+            children: vec![],
+            branches: vec![],
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -25,11 +36,15 @@ pub enum Node {
 pub trait Directive: Debug + Clone + PartialEq {
     fn open(reader: &mut Reader, info: &TagInfo) -> Result<Self, SyntaxError>;
 
+    fn branch(_tags: &[TagInfo], _info: &TagInfo) -> Result<(), SyntaxError> {
+        Ok(())
+    }
+
     fn close(&mut self, _reader: &mut Reader, _info: &TagInfo) -> Result<(), SyntaxError> {
         Ok(())
     }
 
-    fn render(&self, ctx: &mut dyn Context, children: &Vec<Node>) -> Result<String, Box<dyn RuntimeError>>;
+    fn render(&self, ctx: &mut dyn Context, nodes: &[Node], branches: &[Element]) -> Result<String, Box<dyn RuntimeError>>;
 }
 
 impl<T: 'static + DirectiveFactory> Directive for PhantomData<T> {
@@ -41,7 +56,7 @@ impl<T: 'static + DirectiveFactory> Directive for PhantomData<T> {
         unreachable!("unexpected invocation of non-dispatchable function")
     }
 
-    fn render(&self, _: &mut dyn Context, _: &Vec<Node>) -> Result<String, Box<dyn RuntimeError>> {
+    fn render(&self, _: &mut dyn Context, _: &[Node], _: &[Element]) -> Result<String, Box<dyn RuntimeError>> {
         unreachable!("unexpected invocation of non-dispatchable function")
     }
 }

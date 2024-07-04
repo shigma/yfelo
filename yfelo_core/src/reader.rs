@@ -17,7 +17,7 @@ pub struct TagInfo<'i> {
 impl<'i> TagInfo<'i> {
     pub fn expect_children(&self) -> Result<(), SyntaxError> {
         match self.mark {
-            '#' => Ok(()),
+            '#' | ':' => Ok(()),
             _ => Err(SyntaxError {
                 message: format!("directive '{}' should not be empty", self.name),
                 range: self.range,
@@ -42,7 +42,7 @@ pub struct Reader<'i>{
     offset: usize,
     dirs: &'i HashMap<String, Box<dyn Directive>>,
     meta: &'i MetaSyntax<'i>,
-    stack: Vec<(Element, TagInfo<'i>)>,
+    pub stack: Vec<(Element, TagInfo<'i>, Vec<TagInfo<'i>>)>,
 }
 
 impl<'i> Reader<'i> {
@@ -53,19 +53,20 @@ impl<'i> Reader<'i> {
             meta,
             lang,
             dirs,
-            stack: vec![(Element {
-                directive: Box::new(Instance::new(Stub)),
-                children: vec![],
-            }, TagInfo {
+            stack: vec![(Element::new(Box::new(Instance::new(Stub))), TagInfo {
                 name: "",
                 range: (0, 0),
                 mark: '\0',
-            })],
+            }, vec![])],
         }
     }
 
     fn push_node(&mut self, node: Node) {
-       self.stack.last_mut().unwrap().0.children.push(node)
+        let mut element = &mut self.stack.last_mut().unwrap().0;
+        if let Some(branch) = element.branches.last_mut() {
+            element = branch;
+        }
+        element.children.push(node)
     }
 
     fn push_text(&mut self, mut text: &'i str) {
@@ -178,14 +179,32 @@ impl<'i> Reader<'i> {
             Ok(())
         } else {
             Err(SyntaxError {
-                message: format!("invalid tag syntax: expect '}}'"),
+                message: "invalid tag syntax: expect '}'".into(),
                 range: (self.offset, self.offset),
             })
         }
     }
 
-    fn directive_open(&mut self, directive: &dyn Directive, info: &TagInfo) -> Result<Box<dyn Directive>, SyntaxError> {
-        directive.open(self, &info).map_err(|mut error| {
+    fn dir_open(&mut self, info: &TagInfo) -> Result<Box<dyn Directive>, SyntaxError> {
+        let (element, parent, tags) = self.stack.last().unwrap();
+        // if info.mark == ':' {
+        //     name = &format!("{}:{}", parent.name, name);
+        // }
+        let name = if info.mark == ':' {
+            format!("{}:{}", parent.name, info.name)
+        } else {
+            info.name.to_string()
+        };
+        let Some(factory) = self.dirs.get(&name) else {
+            return Err(SyntaxError {
+                message: format!("unknown directive '{}'", name),
+                range: info.range,
+            });
+        };
+        if info.mark == ':' {
+            element.directive.branch(tags, info)?;
+        }
+        factory.open(self, &info).map_err(|mut error| {
             // directive may produce error with tag info
             if error.range != info.range {
                 error.message = format!("invalid syntax for directive '{}': {}", info.name, error.message);
@@ -194,48 +213,50 @@ impl<'i> Reader<'i> {
         })
     }
 
+    fn expect_parent(&mut self, info: &TagInfo) -> Result<(), SyntaxError> {
+        if self.stack.len() == 1 {
+            Err(SyntaxError {
+                message: format!("unmatched tag name '{}'", info.name),
+                range: info.range,
+            })
+        } else {
+            Ok(())
+        }
+    }
+
     fn directive(&mut self, mark: char) -> Result<(), SyntaxError> {
         let (name, range) = self.parse_ident().map_err(|mut error| {
             error.message = format!("invalid tag syntax: missing directive name");
             error
         })?;
-        let Some(directive) = self.dirs.get(name) else {
-            return Err(SyntaxError {
-                message: format!("unknown directive '{}'", name),
-                range,
-            });
-        };
         let info = TagInfo { name, range, mark };
         match mark {
             '#' => {
-                let directive = self.directive_open(directive.as_ref(), &info)?;
-                self.stack.push((Element {
-                    directive,
-                    children: vec![],
-                }, info));
+                let directive = self.dir_open(&info)?;
+                self.stack.push((Element::new(directive), info, vec![]));
+            },
+            '@' => {
+                let directive = self.dir_open(&info)?;
+                self.push_node(Node::Element(Element::new(directive)));
+            },
+            ':' => {
+                self.expect_parent(&info)?;
+                let directive = self.dir_open(&info)?;
+                let (element, _, tags) = self.stack.last_mut().unwrap();
+                element.branches.push(Element::new(directive));
+                tags.push(info);
             },
             '/' => {
-                let (mut element, parent) = self.stack.pop().unwrap();
+                self.expect_parent(&info)?;
+                let (mut element, parent, _) = self.stack.pop().unwrap();
                 if parent.name != name {
-                    let suffix = if self.stack.len() > 0 {
-                        format!(": expect '{}', found '{}'", parent.name, name)
-                    } else {
-                        format!(" '{}'", name)
-                    };
                     return Err(SyntaxError {
-                        message: format!("unmatched tag name{}", suffix),
+                        message: format!("unmatched tag name: expect '{}', found '{}'", parent.name, name),
                         range,
                     });
                 }
                 element.directive.close(self, &info)?;
                 self.push_node(Node::Element(element));
-            },
-            '@' => {
-                let directive = self.directive_open(directive.as_ref(), &info)?;
-                self.push_node(Node::Element(Element {
-                    directive,
-                    children: vec![],
-                }));
             },
             _ => unreachable!(),
         }
@@ -246,7 +267,7 @@ impl<'i> Reader<'i> {
         while let Some(pos) = self.input.find(&self.meta.left) {
             self.push_text(&self.input[..pos]);
             self.skip(pos + 1);
-            if let Some(c @ ('#' | '/' | '@')) = self.input.chars().nth(0) {
+            if let Some(c @ ('#' | '/' | '@' | ':')) = self.input.chars().nth(0) {
                 self.skip(1);
                 self.directive(c)?;
                 self.tag_close()?;
@@ -257,7 +278,7 @@ impl<'i> Reader<'i> {
             }
         }
         self.push_text(self.input);
-        let (element, info) = self.stack.pop().unwrap();
+        let (element, info, _) = self.stack.pop().unwrap();
         if self.stack.len() > 0 {
             return Err(SyntaxError {
                 message: format!("unmatched tag name '{}'", info.name),

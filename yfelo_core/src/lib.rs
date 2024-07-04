@@ -4,7 +4,7 @@ extern crate dyn_derive;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 
-use builtin::{Apply, Def, For, If};
+use builtin::{Apply, Def, For, If, Stub};
 use reader::Reader;
 
 pub use directive::*;
@@ -34,6 +34,8 @@ impl Yfelo {
         dirs.insert("apply".into(), Box::new(PhantomData::<Apply>));
         dirs.insert("def".into(), Box::new(PhantomData::<Def>));
         dirs.insert("if".into(), Box::new(PhantomData::<If>));
+        dirs.insert("if:else".into(), Box::new(PhantomData::<Stub>));
+        dirs.insert("if:elif".into(), Box::new(PhantomData::<If>));
         dirs.insert("for".into(), Box::new(PhantomData::<For>));
         Self {
             dirs,
