@@ -28,6 +28,8 @@ impl factory::Language<Expr, Pattern> for Language {
 }
 
 #[derive(Debug, Clone)]
-pub struct RuntimeError {}
+pub struct RuntimeError {
+    pub message: String,
+}
 
 impl factory::RuntimeError for RuntimeError {}

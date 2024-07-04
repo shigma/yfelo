@@ -1,3 +1,5 @@
+use std::fmt;
+
 use pest::{iterators::Pair, Parser};
 use yfelo_core::{factory, SyntaxError};
 
@@ -42,5 +44,13 @@ impl Pattern {
 impl<T: Into<String>> From<T> for Pattern {
     fn from(value: T) -> Self {
         Pattern::Ident(value.into(), None)
+    }
+}
+
+impl fmt::Display for Pattern {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Pattern::Ident(ident, _) => write!(f, "{}", ident),
+        }
     }
 }

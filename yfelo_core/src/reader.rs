@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::HashMap;
 
 use dyn_std::Instance;
@@ -187,15 +188,12 @@ impl<'i> Reader<'i> {
 
     fn dir_open(&mut self, info: &TagInfo) -> Result<Box<dyn Directive>, SyntaxError> {
         let (element, parent, tags) = self.stack.last().unwrap();
-        // if info.mark == ':' {
-        //     name = &format!("{}:{}", parent.name, name);
-        // }
         let name = if info.mark == ':' {
-            format!("{}:{}", parent.name, info.name)
+            Cow::Owned(format!("{}:{}", parent.name, info.name))
         } else {
-            info.name.to_string()
+            Cow::Borrowed(info.name)
         };
-        let Some(factory) = self.dirs.get(&name) else {
+        let Some(factory) = self.dirs.get(&*name) else {
             return Err(SyntaxError {
                 message: format!("unknown directive '{}'", name),
                 range: info.range,

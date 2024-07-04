@@ -96,15 +96,7 @@ impl BinaryOp {
             Self::BitOr => Value::Number((lhs.as_number()? as i64 | rhs.as_number()? as i64) as f64),
             Self::And => Value::Bool(lhs.as_bool()? && rhs.as_bool()?),
             Self::Or => Value::Bool(lhs.as_bool()? || rhs.as_bool()?),
-            Self::Index => match lhs {
-                Value::Array(vec) => {
-                    vec.get(rhs.as_number()? as usize).unwrap_or(&Value::Null).clone()
-                },
-                Value::Object(map) => {
-                    map.get(rhs.as_str()?).unwrap_or(&Value::Null).clone()
-                },
-                _ => todo!(),
-            },
+            Self::Index => lhs.get(&rhs)?,
         })
     }
 }
