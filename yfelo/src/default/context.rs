@@ -1,34 +1,65 @@
+use std::cell::RefCell;
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 
 use dyn_std::Instance;
 use yfelo_core::{factory, writer::render, ContextFactory, Definition};
 
 use super::{Expr, Pattern, RuntimeError, Value};
 
-pub struct Context {
-    store: HashMap<String, Rc<Value>>,
+#[derive(Default)]
+struct ContextInner {
+    parent: Weak<ContextInner>,
+    store: RefCell<HashMap<String, Rc<Value>>>,
 }
+
+impl ContextInner {
+    fn get(self: &Rc<Self>, key: &str) -> Value {
+        let mut this = Some(self.clone());
+        while let Some(inner) = this {
+            if let Some(v) = inner.store.borrow().get(key) {
+                return Value::Ref(v.clone())
+            }
+            this = inner.parent.upgrade();
+        }
+        Value::Null
+    }
+
+    fn set(&self, key: String, value: Value) -> Result<(), RuntimeError> {
+        match self.store.borrow_mut().entry(key) {
+            Entry::Vacant(entry) => {
+                entry.insert(Rc::new(value));
+                Ok(())
+            },
+            Entry::Occupied(entry) => Err(RuntimeError {
+                message: format!("'{}' is already defined", entry.key()),
+            }),
+        }
+    }
+}
+
+#[derive(Default)]
+pub struct Context(Rc<ContextInner>);
 
 impl Context {
     pub fn new() -> Self {
-        Self {
-            store: Default::default(),
-        }
+        Self::default()
     }
 
     fn preapply(&self, params: &Vec<(Pattern, Option<Expr>)>, args: Vec<Value>) -> Result<Self, RuntimeError> {
-        let mut inner = self.fork();
+        let mut ctx = self.fork();
         if args.len() > params.len() {
             return Err(RuntimeError {
                 message: format!("expect {} arguments, found {}", params.len(), args.len()),
             });
         }
-        for (index, (pattern, default)) in params.iter().enumerate() {
-            let value = match args.get(index) {
-                Some(value) => value.clone(),
+        let args = args.into_iter().map(Some).chain(std::iter::repeat(None));
+        for ((pattern, default), arg) in params.iter().zip(args) {
+            let value = match arg {
+                Some(value) => value,
                 None => match default {
-                    Some(expr) => inner.eval(expr)?,
+                    Some(expr) => ctx.eval(expr)?,
                     None => {
                         return Err(RuntimeError {
                             message: format!("missing required argument '{}'", pattern),
@@ -36,9 +67,9 @@ impl Context {
                     },
                 },
             };
-            inner.bind(pattern, value)?;
+            ctx.bind(pattern, value)?;
         }
-        Ok(inner)
+        Ok(ctx)
     }
 
     fn postapply(self, definition: &Definition) -> Result<Value, RuntimeError> {
@@ -56,7 +87,6 @@ impl Context {
     }
 
     fn apply(&self, f: &Value, args: Vec<Expr>, init: &mut dyn FnMut(&mut dyn yfelo_core::Context) -> Result<String, Box<dyn yfelo_core::RuntimeError>>) -> Result<Value, RuntimeError> {
-        // todo: try
         let Value::Lazy(params, definition) = f else {
             return Err(RuntimeError {
                 message: format!("expect function, found {}", f.type_name()),
@@ -86,7 +116,7 @@ impl factory::Context<Expr, Pattern, Value, RuntimeError> for Context {
                 } else if ident == "null" {
                     Value::Null
                 } else {
-                    Value::Ref(self.store[ident].clone())
+                    self.0.get(ident)
                 }
             },
             Expr::Array(vec, _) => {
@@ -96,7 +126,7 @@ impl factory::Context<Expr, Pattern, Value, RuntimeError> for Context {
             },
             Expr::Apply(func, args, _) => {
                 let func = self.eval(func)?;
-                // todo: clone
+                // fixme
                 self.apply(&func, args.clone(), &mut |_| Ok(String::new()))?
             },
             Expr::Unary(op, expr, _) => {
@@ -112,26 +142,27 @@ impl factory::Context<Expr, Pattern, Value, RuntimeError> for Context {
     }
 
     fn fork(&self) -> Self {
-        Context {
-            store: self.store.clone(),
-        }
+        Self(Rc::new(ContextInner {
+            parent: Rc::downgrade(&self.0),
+            store: Default::default(),
+        }))
     }
 
     fn bind(&mut self, pattern: &Pattern, value: Value) -> Result<(), RuntimeError> {
         match pattern {
             Pattern::Ident(ident, _) => {
-                self.store.insert(ident.into(), Rc::new(value));
+                self.0.set(ident.into(), value)?;
                 Ok(())
             },
         }
     }
 
     fn def(&mut self, name: &str, params: Vec<(Pattern, Option<Expr>)>, definition: Definition) -> Result<(), RuntimeError> {
-        self.store.insert(name.into(), Rc::new(Value::Lazy(params, definition)));
+        self.0.set(name.into(), Value::Lazy(params, definition))?;
         Ok(())
     }
 
     fn apply(&self, name: &str, args: Vec<Expr>, init: &mut dyn FnMut(&mut dyn yfelo_core::Context) -> Result<String, Box<dyn yfelo_core::RuntimeError>>) -> Result<Value, RuntimeError> {
-        Self::apply(&self, &self.store[name], args, init)
+        Self::apply(&self, &self.0.get(name), args, init)
     }
 }

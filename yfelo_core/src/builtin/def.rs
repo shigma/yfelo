@@ -68,8 +68,7 @@ pub struct DefFn {
 
 impl DefFn {
     fn render(&self, ctx: &mut dyn Context, nodes: &[Node], _: &[Element]) -> Result<String, Box<dyn RuntimeError>> {
-        let Self { expr, .. } = self.clone();
-        ctx.def(&self.ident, self.params.clone(), match &expr {
+        ctx.def(&self.ident, self.params.clone(), match &self.expr {
             Some(expr) => Definition::Inline(expr.clone()),
             None => Definition::Block(nodes.into()),
         })?;

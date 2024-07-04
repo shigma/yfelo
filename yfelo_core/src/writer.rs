@@ -10,7 +10,7 @@ pub fn render(ctx: &mut dyn Context, nodes: &[Node]) -> Result<String, Box<dyn R
                 output += ctx.eval(expr)?.to_string()?.as_str()
             },
             Node::Element(element) => {
-                output += &element.directive.render(ctx, &element.children, &element.branches)?;
+                output += &element.directive.render(ctx, &element.nodes, &element.branches)?;
             },
         }
     }

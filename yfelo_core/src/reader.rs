@@ -67,7 +67,7 @@ impl<'i> Reader<'i> {
         if let Some(branch) = element.branches.last_mut() {
             element = branch;
         }
-        element.children.push(node)
+        element.nodes.push(node)
     }
 
     fn push_text(&mut self, mut text: &'i str) {
@@ -283,6 +283,6 @@ impl<'i> Reader<'i> {
                 range: info.range,
             });
         }
-        Ok(element.children)
+        Ok(element.nodes)
     }
 }

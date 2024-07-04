@@ -15,9 +15,9 @@ use crate::writer::render;
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct For {
-    vpat: Box<dyn Pattern>,
-    kpat: Option<Box<dyn Pattern>>,
-    expr: Box<dyn Expr>,
+    pub vpat: Box<dyn Pattern>,
+    pub kpat: Option<Box<dyn Pattern>>,
+    pub expr: Box<dyn Expr>,
 }
 
 impl Directive for For {
@@ -37,12 +37,12 @@ impl Directive for For {
         let entries = ctx.eval(&self.expr)?.as_entries()?;
         let mut output = String::new();
         for entry in entries {
-            let mut inner = ctx.fork();
-            inner.bind(&self.vpat, entry.0)?;
+            let mut fork = ctx.fork();
+            fork.bind(&self.vpat, entry.0)?;
             if let Some(kpat) = &self.kpat {
-                inner.bind(&kpat, entry.1)?;
+                fork.bind(&kpat, entry.1)?;
             }
-            output += &render(inner.as_mut(), nodes)?;
+            output += &render(fork.as_mut(), nodes)?;
         }
         Ok(output)
     }

@@ -27,6 +27,7 @@ impl Directive for Stub {
     }
 
     fn render(&self, ctx: &mut dyn Context, nodes: &[Node], _: &[Element]) -> Result<String, Box<dyn RuntimeError>> {
-        render(ctx, nodes)
+        let mut fork = ctx.fork();
+        render(fork.as_mut(), nodes)
     }
 }

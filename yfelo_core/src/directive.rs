@@ -6,12 +6,10 @@ use dyn_std::Instance;
 use crate::language::{Context, Expr, RuntimeError, SyntaxError};
 use crate::reader::{TagInfo, Reader};
 
-// FIXME: `Element`, `Node` and `Directive` should not derive `Clone`.
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct Element {
     pub directive: Box<dyn Directive>,
-    pub children: Vec<Node>,
+    pub nodes: Vec<Node>,
     pub branches: Vec<Element>,
 }
 
@@ -19,7 +17,7 @@ impl Element {
     pub fn new(directive: Box<dyn Directive>) -> Self {
         Self {
             directive,
-            children: vec![],
+            nodes: vec![],
             branches: vec![],
         }
     }
