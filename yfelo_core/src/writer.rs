@@ -7,7 +7,7 @@ pub fn render(ctx: &mut dyn Context, nodes: &[Node]) -> Result<String, Box<dyn R
         match node {
             Node::Text(text) => output += text,
             Node::Expr(expr) => {
-                output += ctx.eval(expr)?.to_string()?.as_str()
+                output += ctx.eval(expr.as_ref())?.to_string()?.as_str()
             },
             Node::Element(element) => {
                 output += &element.directive.render(ctx, &element.nodes, &element.branches)?;

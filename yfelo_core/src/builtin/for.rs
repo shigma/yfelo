@@ -34,13 +34,13 @@ impl Directive for For {
     }
 
     fn render(&self, ctx: &mut dyn Context, nodes: &[Node], _: &[Element]) -> Result<String, Box<dyn RuntimeError>> {
-        let entries = ctx.eval(&self.expr)?.as_entries()?;
+        let entries = ctx.eval(self.expr.as_ref())?.as_entries()?;
         let mut output = String::new();
         for entry in entries {
             let mut fork = ctx.fork();
-            fork.bind(&self.vpat, entry.0)?;
+            fork.bind(self.vpat.as_ref(), entry.0)?;
             if let Some(kpat) = &self.kpat {
-                fork.bind(&kpat, entry.1)?;
+                fork.bind(kpat.as_ref(), entry.1)?;
             }
             output += &render(fork.as_mut(), nodes)?;
         }

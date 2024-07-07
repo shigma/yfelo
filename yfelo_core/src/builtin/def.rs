@@ -40,8 +40,8 @@ pub struct DefVar {
 
 impl DefVar {
     fn render(&self, ctx: &mut dyn Context, _: &[Node], _: &[Element]) -> Result<String, Box<dyn RuntimeError>> {
-        let value = ctx.eval(&self.expr)?;
-        ctx.bind(&self.pat, value)?;
+        let value = ctx.eval(self.expr.as_ref())?;
+        ctx.bind(self.pat.as_ref(), value)?;
         Ok(String::new())
     }
 }

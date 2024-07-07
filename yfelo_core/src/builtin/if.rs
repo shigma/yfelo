@@ -42,13 +42,13 @@ impl Directive for If {
     }
 
     fn render(&self, ctx: &mut dyn Context, nodes: &[Node], branches: &[Element]) -> Result<String, Box<dyn RuntimeError>> {
-        if ctx.eval(&self.expr)?.as_bool()? {
+        if ctx.eval(self.expr.as_ref())?.as_bool()? {
             let mut fork = ctx.fork();
             return render(fork.as_mut(), nodes);
         }
         for branch in branches {
             if let Some(instance) = branch.directive.as_any().downcast_ref::<Instance<If, ()>>() {
-                if ctx.eval(&instance.0.expr)?.as_bool()? {
+                if ctx.eval(instance.0.expr.as_ref())?.as_bool()? {
                     let mut fork = ctx.fork();
                     return render(fork.as_mut(), &branch.nodes);
                 }
