@@ -1,10 +1,8 @@
-use std::marker::PhantomData;
-
 use dyn_std::Instance;
 use once_cell::sync::Lazy;
 use yfelo::builtin::Stub;
 use yfelo::default::{Expr, Language, Pattern};
-use yfelo::{Element, MetaSyntax, Node, SyntaxError, Yfelo};
+use yfelo::{Element, Node, SyntaxError, Yfelo};
 
 const YFELO: Lazy<Yfelo> = Lazy::new(|| {
     let mut yfelo = Yfelo::new();
@@ -14,12 +12,9 @@ const YFELO: Lazy<Yfelo> = Lazy::new(|| {
     yfelo
 });
 
-const LANG: Lazy<Box<dyn yfelo::Language>> = Lazy::new(|| Box::new(PhantomData::<(Language, Expr, Pattern)>));
-
-const META_SYNTAX: MetaSyntax = MetaSyntax {
-    left: "{",
-    right: "}",
-};
+fn parse(input: &str) -> Result<Vec<Node>, SyntaxError> {
+    YFELO.parse(&(String::from("{@yfelo}\n") + input))
+}
 
 macro_rules! ident {
     ($v:expr, $range:tt $(,)?) => {
@@ -41,8 +36,7 @@ macro_rules! index {
 
 #[test]
 pub fn basic_1() {
-    let (y, l) = (YFELO, LANG);
-    let nodes = y.parse("(Hello) {world}!", l.as_ref(), &META_SYNTAX).unwrap();
+    let nodes = parse("(Hello) {world}!").unwrap();
     assert_eq!(nodes, vec![
         Node::Text("(Hello) ".into()),
         Node::Expr(Box::from(Instance::new(ident!("world", (9, 14))))),
@@ -52,8 +46,7 @@ pub fn basic_1() {
 
 #[test]
 pub fn basic_2() {
-    let (y, l) = (YFELO, LANG);
-    let nodes = y.parse("{world}", l.as_ref(), &META_SYNTAX).unwrap();
+    let nodes = parse("{world}").unwrap();
     assert_eq!(nodes, vec![
         Node::Expr(Box::from(Instance::new(ident!("world", (1, 6))))),
     ]);
@@ -61,8 +54,7 @@ pub fn basic_2() {
 
 #[test]
 pub fn basic_3() {
-    let (y, l) = (YFELO, LANG);
-    let nodes = y.parse("{w(or[ld])}", l.as_ref(), &META_SYNTAX).unwrap();
+    let nodes = parse("{w(or[ld])}").unwrap();
     assert_eq!(nodes, vec![
         Node::Expr(Box::from(Instance::new(apply!(
             ident!("w", (1, 2)),
@@ -74,12 +66,7 @@ pub fn basic_3() {
 
 #[test]
 pub fn basic_4() {
-    let (y, l) = (YFELO, LANG);
-    let meta = MetaSyntax {
-        left: "[",
-        right: "]",
-    };
-    let nodes = y.parse("[w[or][ld]]!", l.as_ref(), &meta).unwrap();
+    let nodes = YFELO.parse("[@yfelo]\n[w[or][ld]]!").unwrap();
     assert_eq!(nodes, vec![
         Node::Expr(Box::from(Instance::new(index!(
             index!(ident!("w", (1, 2)), ident!("or", (3, 5)), true, (2, 6)),
@@ -93,8 +80,7 @@ pub fn basic_4() {
 
 #[test]
 pub fn invalid_tag_1() {
-    let (y, l) = (YFELO, LANG);
-    let err = y.parse("{Hello} {world", l.as_ref(), &META_SYNTAX).unwrap_err();
+    let err = parse("{Hello} {world").unwrap_err();
     assert_eq!(err, SyntaxError {
         message: "invalid tag syntax: expect '}'".into(),
         range: (14, 14),
@@ -103,8 +89,7 @@ pub fn invalid_tag_1() {
 
 #[test]
 pub fn invalid_tag_2() {
-    let (y, l) = (YFELO, LANG);
-    let err = y.parse("{Hel(lo}", l.as_ref(), &META_SYNTAX).unwrap_err();
+    let err = parse("{Hel(lo}").unwrap_err();
     assert_eq!(err, SyntaxError {
         message: "invalid tag syntax: expect '}'".into(),
         range: (4, 4),
@@ -113,8 +98,7 @@ pub fn invalid_tag_2() {
 
 #[test]
 pub fn invalid_tag_3() {
-    let (y, l) = (YFELO, LANG);
-    let err = y.parse("{Hel)lo}", l.as_ref(), &META_SYNTAX).unwrap_err();
+    let err = parse("{Hel)lo}").unwrap_err();
     assert_eq!(err, SyntaxError {
         message: "invalid tag syntax: expect '}'".into(),
         range: (4, 4),
@@ -123,8 +107,7 @@ pub fn invalid_tag_3() {
 
 #[test]
 pub fn invalid_tag_4() {
-    let (y, l) = (YFELO, LANG);
-    let err = y.parse("{H(e[l)l]o}", l.as_ref(), &META_SYNTAX).unwrap_err();
+    let err = parse("{H(e[l)l]o}").unwrap_err();
     assert_eq!(err, SyntaxError {
         message: "invalid tag syntax: expect '}'".into(),
         range: (2, 2),
@@ -133,8 +116,7 @@ pub fn invalid_tag_4() {
 
 #[test]
 pub fn tag_1() {
-    let (y, l) = (YFELO, LANG);
-    let nodes = y.parse("{#foo}Hello{/foo} {#bar}world{/bar}!", l.as_ref(), &META_SYNTAX).unwrap();
+    let nodes = parse("{#foo}Hello{/foo} {#bar}world{/bar}!").unwrap();
     assert_eq!(nodes, vec![
         Node::Element(Element {
             directive: Box::new(Instance::new(Stub)),
@@ -153,8 +135,7 @@ pub fn tag_1() {
 
 #[test]
 pub fn tag_2() {
-    let (y, l) = (YFELO, LANG);
-    let nodes = y.parse("{#foo}Hello{@bar} {#bar}world{/bar}!{/foo}", l.as_ref(), &META_SYNTAX).unwrap();
+    let nodes = parse("{#foo}Hello{@bar} {#bar}world{/bar}!{/foo}").unwrap();
     assert_eq!(nodes, vec![
         Node::Element(Element {
             directive: Box::new(Instance::new(Stub)),
@@ -180,24 +161,21 @@ pub fn tag_2() {
 
 #[test]
 pub fn unmatched_tag_1() {
-    let (y, l) = (YFELO, LANG);
-    let error = y.parse("{#foo}Hello {#bar}world{/foo}!{/bar}", l.as_ref(), &META_SYNTAX).unwrap_err();
+    let error = parse("{#foo}Hello {#bar}world{/foo}!{/bar}").unwrap_err();
     assert_eq!(error.message, "unmatched tag name: expect 'bar', found 'foo'");
     assert_eq!(error.range, (25, 28));
 }
 
 #[test]
 pub fn unmatched_tag_2() {
-    let (y, l) = (YFELO, LANG);
-    let error = y.parse("{#foo}Hello{/foo} world{/bar}!", l.as_ref(), &META_SYNTAX).unwrap_err();
+    let error = parse("{#foo}Hello{/foo} world{/bar}!").unwrap_err();
     assert_eq!(error.message, "unmatched tag name 'bar'");
     assert_eq!(error.range, (25, 28));
 }
 
 #[test]
 pub fn unmatched_tag_3() {
-    let (y, l) = (YFELO, LANG);
-    let error = y.parse("{#foo}Hello{/foo} world{#bar}!", l.as_ref(), &META_SYNTAX).unwrap_err();
+    let error = parse("{#foo}Hello{/foo} world{#bar}!").unwrap_err();
     assert_eq!(error.message, "unmatched tag name 'bar'");
     assert_eq!(error.range, (25, 28));
 }

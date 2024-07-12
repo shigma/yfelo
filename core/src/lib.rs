@@ -19,11 +19,6 @@ pub mod language;
 pub mod reader;
 pub mod writer;
 
-pub struct MetaSyntax<'i> {
-    pub left: &'i str,
-    pub right: &'i str,
-}
-
 pub struct Yfelo {
     dirs: HashMap<String, Box<dyn Directive>>,
     langs: HashMap<String, Box<dyn Language>>,
@@ -52,13 +47,60 @@ impl Yfelo {
         self.langs.insert(name.into(), Box::new(PhantomData::<(T, E, P)>));
     }
 
-    pub fn parse<'i>(&'i self, source: &'i str, lang: &'i dyn Language, meta: &'i MetaSyntax) -> Result<Vec<Node>, SyntaxError> {
-        let reader = Reader::new(source, meta, lang, &self.dirs);
+    pub fn prepare<'i, 'j>(&'i self, input: &'j str) -> Result<YfeloFile<'i, 'j>, SyntaxError> {
+        let header = input.split('\n').next().unwrap();
+        let Some(pos) = header.find("@yfelo") else {
+            return Err(SyntaxError {
+                message: "missing @yfelo directive".into(),
+                range: (0, 0),
+            })
+        };
+        let left = header[0..pos].trim_ascii();
+        let right = header[pos + 6..].trim_ascii();
+        let Some(lang) = self.langs.get("default") else {
+            return Err(SyntaxError {
+                message: "missing default language".into(),
+                range: (0, 0),
+            })
+        };
+        let remain = input[header.len()..].trim_ascii_start();
+        Ok(YfeloFile {
+            input: remain,
+            meta: MetaSyntax { left, right },
+            lang: lang.as_ref(),
+            yfelo: self,
+        })
+    }
+
+    pub fn parse(&self, input: &str) -> Result<Vec<Node>, SyntaxError> {
+        self.prepare(input)?.parse()
+    }
+
+    pub fn render(&self, input: &str, ctx: &mut dyn Context) -> Result<String, Error> {
+        self.prepare(input).map_err(Error::Syntax)?.render(ctx)
+    }
+}
+
+pub struct MetaSyntax<'i> {
+    pub left: &'i str,
+    pub right: &'i str,
+}
+
+pub struct YfeloFile<'i, 'j> {
+    yfelo: &'i Yfelo,
+    lang: &'i dyn Language,
+    input: &'j str,
+    meta: MetaSyntax<'j>,
+}
+
+impl<'i, 'j> YfeloFile<'i, 'j> {
+    pub fn parse(&self) -> Result<Vec<Node>, SyntaxError> {
+        let reader = Reader::new(self.input, &self.meta, self.lang, &self.yfelo.dirs);
         reader.run()
     }
 
-    pub fn render<'i>(&'i self, source: &'i str, lang: &'i dyn Language, meta: &'i MetaSyntax, ctx: &mut dyn Context) -> Result<String, Error> {
-        let nodes = self.parse(source, lang, meta).map_err(|e| Error::Syntax(e))?;
-        render(ctx, &nodes).map_err(|e| Error::Runtime(e))
+    pub fn render(&self, ctx: &mut dyn Context) -> Result<String, Error> {
+        let nodes = self.parse().map_err(Error::Syntax)?;
+        render(ctx, &nodes).map_err(Error::Runtime)
     }
 }
