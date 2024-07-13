@@ -47,10 +47,10 @@ pub struct Reader<'i>{
 }
 
 impl<'i> Reader<'i> {
-    pub fn new(input: &'i str, meta: &'i MetaSyntax, lang: &'i dyn Language, dirs: &'i HashMap<String, Box<dyn Directive>>) -> Self {
+    pub fn new(input: &'i str, offset: usize, meta: &'i MetaSyntax, lang: &'i dyn Language, dirs: &'i HashMap<String, Box<dyn Directive>>) -> Self {
         Self {
             input,
-            offset: 0,
+            offset,
             meta,
             lang,
             dirs,

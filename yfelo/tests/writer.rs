@@ -1,22 +1,18 @@
 use dyn_std::Instance;
 use once_cell::sync::Lazy;
-use yfelo::Yfelo;
+use yfelo::{Header, Yfelo};
 use yfelo::default::{Context, Expr, Language, Pattern};
 
-const YFELO: Lazy<Yfelo> = Lazy::new(|| {
-    let mut yfelo = Yfelo::new();
+const HEADER: Lazy<Header> = Lazy::new(|| {
+    let yfelo = Box::leak(Box::new(Yfelo::new()));
     yfelo.add_language::<Expr, Pattern, Language>("default");
-    yfelo
+    yfelo.prepare("{@yfelo}", false).unwrap()
 });
-
-fn render(input: &str, ctx: &mut dyn yfelo::Context) -> Result<String, yfelo::Error> {
-    YFELO.render(&(String::from("{@yfelo}\n") + input), ctx)
-}
 
 #[test]
 pub fn basic_1() {
     let mut ctx: Box<dyn yfelo::Context> = Box::new(Instance::new(Context::new()));
-    let output = render("
+    let output = HEADER.render("
         {@def world = 'yfelo'}
         Hello, {world}!
     ", ctx.as_mut()).unwrap();
@@ -26,7 +22,7 @@ pub fn basic_1() {
 #[test]
 pub fn def_inline_1() {
     let mut ctx: Box<dyn yfelo::Context> = Box::new(Instance::new(Context::new()));
-    let output = render("
+    let output = HEADER.render("
         {@def foo = 'bar'}
         {@def bar = 'foo'}
         {foo + bar}
@@ -37,7 +33,7 @@ pub fn def_inline_1() {
 #[test]
 pub fn def_block_1() {
     let mut ctx: Box<dyn yfelo::Context> = Box::new(Instance::new(Context::new()));
-    let output = render("
+    let output = HEADER.render("
         {#def text}
             Hello, world!
         {/def}
@@ -49,7 +45,7 @@ pub fn def_block_1() {
 #[test]
 pub fn def_block_2() {
     let mut ctx: Box<dyn yfelo::Context> = Box::new(Instance::new(Context::new()));
-    let output = render("
+    let output = HEADER.render("
         {#def text(world)}
             Hello, {world}!
         {/def}
@@ -61,7 +57,7 @@ pub fn def_block_2() {
 #[test]
 pub fn def_default_1() {
     let mut ctx: Box<dyn yfelo::Context> = Box::new(Instance::new(Context::new()));
-    let output = render("
+    let output = HEADER.render("
         {#def text(world = 'yfelo')}
             Hello, {world}!
         {/def}

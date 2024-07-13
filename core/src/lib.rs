@@ -47,7 +47,7 @@ impl Yfelo {
         self.langs.insert(name.into(), Box::new(PhantomData::<(T, E, P)>));
     }
 
-    pub fn prepare<'i, 'j>(&'i self, input: &'j str) -> Result<YfeloFile<'i, 'j>, SyntaxError> {
+    pub fn prepare<'i, 'j>(&'i self, input: &'j str, with_offset: bool) -> Result<Header<'i, 'j>, SyntaxError> {
         let header = input.split('\n').next().unwrap();
         let Some(pos) = header.find("@yfelo") else {
             return Err(SyntaxError {
@@ -63,21 +63,29 @@ impl Yfelo {
                 range: (0, 0),
             })
         };
-        let remain = input[header.len()..].trim_ascii_start();
-        Ok(YfeloFile {
-            input: remain,
+        let offset = if with_offset {
+            let len = input.len();
+            let body = input[header.len()..].trim_ascii_start();
+            len - body.len()
+        } else {
+            0
+        };
+        Ok(Header {
             meta: MetaSyntax { left, right },
             lang: lang.as_ref(),
-            yfelo: self,
+            dirs: &self.dirs,
+            offset,
         })
     }
 
     pub fn parse(&self, input: &str) -> Result<Vec<Node>, SyntaxError> {
-        self.prepare(input)?.parse()
+        let header = self.prepare(input, true)?;
+        header.parse(&input[header.offset..])
     }
 
     pub fn render(&self, input: &str, ctx: &mut dyn Context) -> Result<String, Error> {
-        self.prepare(input).map_err(Error::Syntax)?.render(ctx)
+        let header = self.prepare(input, true).map_err(Error::Syntax)?;
+        header.render(&input[header.offset..], ctx)
     }
 }
 
@@ -86,21 +94,21 @@ pub struct MetaSyntax<'i> {
     pub right: &'i str,
 }
 
-pub struct YfeloFile<'i, 'j> {
-    yfelo: &'i Yfelo,
+pub struct Header<'i, 'j> {
+    dirs: &'i HashMap<String, Box<dyn Directive>>,
     lang: &'i dyn Language,
-    input: &'j str,
     meta: MetaSyntax<'j>,
+    offset: usize,
 }
 
-impl<'i, 'j> YfeloFile<'i, 'j> {
-    pub fn parse(&self) -> Result<Vec<Node>, SyntaxError> {
-        let reader = Reader::new(self.input, &self.meta, self.lang, &self.yfelo.dirs);
+impl<'i, 'j> Header<'i, 'j> {
+    pub fn parse(&self, input: &str) -> Result<Vec<Node>, SyntaxError> {
+        let reader = Reader::new(input, self.offset, &self.meta, self.lang, &self.dirs);
         reader.run()
     }
 
-    pub fn render(&self, ctx: &mut dyn Context) -> Result<String, Error> {
-        let nodes = self.parse().map_err(Error::Syntax)?;
+    pub fn render(&self, input: &str, ctx: &mut dyn Context) -> Result<String, Error> {
+        let nodes = self.parse(input).map_err(Error::Syntax)?;
         render(ctx, &nodes).map_err(Error::Runtime)
     }
 }

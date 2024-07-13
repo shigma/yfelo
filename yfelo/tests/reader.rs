@@ -2,19 +2,15 @@ use dyn_std::Instance;
 use once_cell::sync::Lazy;
 use yfelo::builtin::Stub;
 use yfelo::default::{Expr, Language, Pattern};
-use yfelo::{Element, Node, SyntaxError, Yfelo};
+use yfelo::{Element, Header, Node, SyntaxError, Yfelo};
 
-const YFELO: Lazy<Yfelo> = Lazy::new(|| {
-    let mut yfelo = Yfelo::new();
+const HEADER: Lazy<Header> = Lazy::new(|| {
+    let yfelo = Box::leak(Box::new(Yfelo::new()));
     yfelo.add_directive::<Stub>("foo");
     yfelo.add_directive::<Stub>("bar");
     yfelo.add_language::<Expr, Pattern, Language>("default");
-    yfelo
+    yfelo.prepare("{@yfelo}", false).unwrap()
 });
-
-fn parse(input: &str) -> Result<Vec<Node>, SyntaxError> {
-    YFELO.parse(&(String::from("{@yfelo}\n") + input))
-}
 
 macro_rules! ident {
     ($v:expr, $range:tt $(,)?) => {
@@ -36,7 +32,7 @@ macro_rules! index {
 
 #[test]
 pub fn basic_1() {
-    let nodes = parse("(Hello) {world}!").unwrap();
+    let nodes = HEADER.parse("(Hello) {world}!").unwrap();
     assert_eq!(nodes, vec![
         Node::Text("(Hello) ".into()),
         Node::Expr(Box::from(Instance::new(ident!("world", (9, 14))))),
@@ -46,7 +42,7 @@ pub fn basic_1() {
 
 #[test]
 pub fn basic_2() {
-    let nodes = parse("{world}").unwrap();
+    let nodes = HEADER.parse("{world}").unwrap();
     assert_eq!(nodes, vec![
         Node::Expr(Box::from(Instance::new(ident!("world", (1, 6))))),
     ]);
@@ -54,7 +50,7 @@ pub fn basic_2() {
 
 #[test]
 pub fn basic_3() {
-    let nodes = parse("{w(or[ld])}").unwrap();
+    let nodes = HEADER.parse("{w(or[ld])}").unwrap();
     assert_eq!(nodes, vec![
         Node::Expr(Box::from(Instance::new(apply!(
             ident!("w", (1, 2)),
@@ -66,21 +62,19 @@ pub fn basic_3() {
 
 #[test]
 pub fn basic_4() {
-    let nodes = YFELO.parse("[@yfelo]\n[w[or][ld]]!").unwrap();
+    let nodes = HEADER.parse("{{w:or,ld}}!").unwrap();
     assert_eq!(nodes, vec![
-        Node::Expr(Box::from(Instance::new(index!(
-            index!(ident!("w", (1, 2)), ident!("or", (3, 5)), true, (2, 6)),
-            ident!("ld", (7, 9)),
-            true, 
-            (6, 10),
-        )))),
+        Node::Expr(Box::from(Instance::new(Expr::Object(vec![
+            (ident!("w", (2, 3)), Some(ident!("or", (4, 6)))),
+            (ident!("ld", (7, 9)), None),
+        ], Some((1, 10)))))),
         Node::Text("!".into()),
     ]);
 }
 
 #[test]
 pub fn invalid_tag_1() {
-    let err = parse("{Hello} {world").unwrap_err();
+    let err = HEADER.parse("{Hello} {world").unwrap_err();
     assert_eq!(err, SyntaxError {
         message: "invalid tag syntax: expect '}'".into(),
         range: (14, 14),
@@ -89,7 +83,7 @@ pub fn invalid_tag_1() {
 
 #[test]
 pub fn invalid_tag_2() {
-    let err = parse("{Hel(lo}").unwrap_err();
+    let err = HEADER.parse("{Hel(lo}").unwrap_err();
     assert_eq!(err, SyntaxError {
         message: "invalid tag syntax: expect '}'".into(),
         range: (4, 4),
@@ -98,7 +92,7 @@ pub fn invalid_tag_2() {
 
 #[test]
 pub fn invalid_tag_3() {
-    let err = parse("{Hel)lo}").unwrap_err();
+    let err = HEADER.parse("{Hel)lo}").unwrap_err();
     assert_eq!(err, SyntaxError {
         message: "invalid tag syntax: expect '}'".into(),
         range: (4, 4),
@@ -107,7 +101,7 @@ pub fn invalid_tag_3() {
 
 #[test]
 pub fn invalid_tag_4() {
-    let err = parse("{H(e[l)l]o}").unwrap_err();
+    let err = HEADER.parse("{H(e[l)l]o}").unwrap_err();
     assert_eq!(err, SyntaxError {
         message: "invalid tag syntax: expect '}'".into(),
         range: (2, 2),
@@ -116,7 +110,7 @@ pub fn invalid_tag_4() {
 
 #[test]
 pub fn tag_1() {
-    let nodes = parse("{#foo}Hello{/foo} {#bar}world{/bar}!").unwrap();
+    let nodes = HEADER.parse("{#foo}Hello{/foo} {#bar}world{/bar}!").unwrap();
     assert_eq!(nodes, vec![
         Node::Element(Element {
             directive: Box::new(Instance::new(Stub)),
@@ -135,7 +129,7 @@ pub fn tag_1() {
 
 #[test]
 pub fn tag_2() {
-    let nodes = parse("{#foo}Hello{@bar} {#bar}world{/bar}!{/foo}").unwrap();
+    let nodes = HEADER.parse("{#foo}Hello{@bar} {#bar}world{/bar}!{/foo}").unwrap();
     assert_eq!(nodes, vec![
         Node::Element(Element {
             directive: Box::new(Instance::new(Stub)),
@@ -161,21 +155,21 @@ pub fn tag_2() {
 
 #[test]
 pub fn unmatched_tag_1() {
-    let error = parse("{#foo}Hello {#bar}world{/foo}!{/bar}").unwrap_err();
+    let error = HEADER.parse("{#foo}Hello {#bar}world{/foo}!{/bar}").unwrap_err();
     assert_eq!(error.message, "unmatched tag name: expect 'bar', found 'foo'");
     assert_eq!(error.range, (25, 28));
 }
 
 #[test]
 pub fn unmatched_tag_2() {
-    let error = parse("{#foo}Hello{/foo} world{/bar}!").unwrap_err();
+    let error = HEADER.parse("{#foo}Hello{/foo} world{/bar}!").unwrap_err();
     assert_eq!(error.message, "unmatched tag name 'bar'");
     assert_eq!(error.range, (25, 28));
 }
 
 #[test]
 pub fn unmatched_tag_3() {
-    let error = parse("{#foo}Hello{/foo} world{#bar}!").unwrap_err();
+    let error = HEADER.parse("{#foo}Hello{/foo} world{#bar}!").unwrap_err();
     assert_eq!(error.message, "unmatched tag name 'bar'");
     assert_eq!(error.range, (25, 28));
 }
