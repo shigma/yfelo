@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::hash_map::Entry;
 use std::collections::{BTreeMap, HashMap};
@@ -126,16 +127,20 @@ impl factory::Context<Expr, Pattern, Value, RuntimeError> for Context {
             Expr::Object(entries, _) => {
                 let mut map = BTreeMap::new();
                 for (key, value) in entries {
-                    let value = self.eval(value.as_ref().unwrap())?.into_rc();
-                    match key {
+                    let mut value = match value {
+                        Some(expr) => Some(self.eval(expr)?),
+                        None => None,
+                    };
+                    let key = match key {
                         Expr::Ident(key, _) => {
-                            map.insert(key.into(), value);
+                            if let None = value {
+                                value = Some(self.0.get(&key));
+                            }
+                            key.clone()
                         },
-                        expr => {
-                            let key = self.eval(expr)?;
-                            map.insert(key.as_string()?, value);
-                        },
-                    }
+                        expr => self.eval(expr)?.as_string()?,
+                    };
+                    map.insert(key, value.unwrap().into_rc());
                 }
                 Value::Object(map)
             },
@@ -172,7 +177,6 @@ impl factory::Context<Expr, Pattern, Value, RuntimeError> for Context {
         match pattern {
             Pattern::Ident(ident, _) => {
                 self.0.set(ident.into(), value)?;
-                Ok(())
             },
             Pattern::Array(pats, _) => {
                 for (pattern, value) in pats.iter().zip(iter_option(value.into_array()?)) {
@@ -181,9 +185,29 @@ impl factory::Context<Expr, Pattern, Value, RuntimeError> for Context {
                         _ => Value::Null,
                     })?;
                 }
-                Ok(())
+            },
+            Pattern::Object(entries, _) => {
+                let map = value.into_object()?;
+                for (key, pattern) in entries {
+                    let mut pattern = Cow::Borrowed(pattern);
+                    let key = match key {
+                        Expr::Ident(key, _) => {
+                            if let None = pattern.as_ref() {
+                                pattern = Cow::Owned(Some(Pattern::Ident(key.clone(), None)));
+                            }
+                            key.clone()
+                        },
+                        expr => self.eval(expr)?.as_string()?,
+                    };
+                    let value = match map.get(&key) {
+                        Some(value) => Value::from_rc(value.clone()),
+                        None => Value::Null,
+                    };
+                    self.bind(pattern.as_ref().as_ref().unwrap(), value)?;
+                }
             },
         }
+        Ok(())
     }
 
     fn def(&mut self, name: &str, params: Vec<(Pattern, Option<Expr>)>, definition: Definition) -> Result<(), RuntimeError> {

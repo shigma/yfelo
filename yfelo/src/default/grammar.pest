@@ -14,7 +14,8 @@ string_single = _{ "'" ~ (!("'" | "\\") ~ ANY | "\\" ~ ANY)* ~ "'" }
 
 pattern = { ident | pat_array }
 pat_array = { "[" ~ (pattern ~ ",")* ~ pattern? ~ "]" }
-expr_list = _{ (expr ~ ",")* ~ expr? }
+pat_object = { "{" ~ (pat_entry ~ ",")* ~ pat_entry? ~ "}" }
+pat_entry = { entry_key ~ ":" ~ pattern | ident }
 
 prefix = { "!" | "-" | "+" }
 suffix = { "(" ~ expr_list ~ ")" | "[" ~ expr ~ "]" | "." ~ ident }
@@ -22,7 +23,9 @@ literal = { number | string | ident | array | object | "(" ~ expr ~ ")" }
 array = { "[" ~ expr_list ~ "]" }
 object = { "{" ~ (entry ~ ",")* ~ entry? ~ "}" }
 
-entry = { (number | string | ident | "[" ~ expr ~ "]") ~ ":" ~ expr | ident }
+expr_list = _{ (expr ~ ",")* ~ expr? }
+entry_key = _{ number | string | ident | "[" ~ expr ~ "]" }
+entry = { entry_key ~ ":" ~ expr | ident }
 
 pow = { "**" }
 mul = { "*" | "/" | "%" }

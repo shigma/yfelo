@@ -102,7 +102,7 @@ impl Expr {
         }
     }
 
-    fn parse_literal(pair: Pair<Rule>, offset: usize) -> Self {
+    pub fn parse_literal(pair: Pair<Rule>, offset: usize) -> Self {
         let range = Some(pair.to_range(offset));
         match pair.as_rule() {
             Rule::ident => Expr::Ident(pair.as_str().to_string(), range),

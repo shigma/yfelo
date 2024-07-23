@@ -87,6 +87,15 @@ impl Value {
         }
     }
 
+    pub fn into_object(self) -> Result<BTreeMap<String, Rc<Value>>, RuntimeError> {
+        match self {
+            Self::Object(map) => Ok(map),
+            _ => Err(RuntimeError {
+                message: format!("expect object, found {}", self.type_name()),
+            }),
+        }
+    }
+
     pub fn from_rc(rc: Rc<Self>) -> Self {
         match rc.deref() {
             Self::Ref(v) => Self::Ref(v.clone()),
