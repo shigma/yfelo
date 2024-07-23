@@ -78,6 +78,22 @@ impl Value {
         }
     }
 
+    pub fn into_array(self) -> Result<Vec<Rc<Value>>, RuntimeError> {
+        match self {
+            Self::Array(vec) => Ok(vec),
+            _ => Err(RuntimeError {
+                message: format!("expect array, found {}", self.type_name()),
+            }),
+        }
+    }
+
+    pub fn from_rc(rc: Rc<Self>) -> Self {
+        match rc.deref() {
+            Self::Ref(v) => Self::Ref(v.clone()),
+            _ => Self::Ref(rc),
+        }
+    }
+
     pub fn into_rc(self) -> Rc<Self> {
         match self {
             Self::Ref(v) => v,

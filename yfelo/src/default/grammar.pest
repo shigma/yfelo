@@ -12,7 +12,8 @@ string = @{ string_single | string_double }
 string_double = _{ "\"" ~ (!("\"" | "\\") ~ ANY | "\\" ~ ANY)* ~ "\"" }
 string_single = _{ "'" ~ (!("'" | "\\") ~ ANY | "\\" ~ ANY)* ~ "'" }
 
-pattern = { ident }
+pattern = { ident | pat_array }
+pat_array = { "[" ~ (pattern ~ ",")* ~ pattern? ~ "]" }
 expr_list = _{ (expr ~ ",")* ~ expr? }
 
 prefix = { "!" | "-" | "+" }

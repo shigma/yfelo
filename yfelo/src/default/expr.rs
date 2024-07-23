@@ -59,7 +59,7 @@ impl Expr {
     fn from_list(pairs: Pairs<Rule>, offset: usize) -> Vec<Self> {
         let mut exprs = vec![];
         for pair in pairs {
-            exprs.push(Expr::from(pair, offset));
+            exprs.push(Self::from(pair, offset));
         }
         exprs
     }
@@ -68,15 +68,15 @@ impl Expr {
         assert!(matches!(pair.as_rule(), Rule::entry));
         let mut pairs = pair.into_inner();
         let pair = pairs.next().unwrap();
-        let key = Expr::parse_literal(pair, offset);
-        let value = pairs.next().map(|p| Expr::from(p, offset));
+        let key = Self::parse_literal(pair, offset);
+        let value = pairs.next().map(|p| Self::from(p, offset));
         (key, value)
     }
 
     fn from_entries(pairs: Pairs<Rule>, offset: usize) -> Vec<(Self, Option<Self>)> {
         let mut entries = vec![];
         for pair in pairs {
-            entries.push(Expr::from_entry(pair, offset));
+            entries.push(Self::from_entry(pair, offset));
         }
         entries
     }

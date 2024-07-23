@@ -39,6 +39,10 @@ impl ContextInner {
     }
 }
 
+fn iter_option<T: Clone>(vec: impl IntoIterator<Item = T>) -> impl Iterator<Item = Option<T>> {
+    vec.into_iter().map(Some).chain(std::iter::repeat(None))
+}
+
 #[derive(Default)]
 pub struct Context(Rc<ContextInner>);
 
@@ -54,8 +58,7 @@ impl Context {
                 message: format!("expect {} arguments, found {}", params.len(), args.len()),
             });
         }
-        let args = args.into_iter().map(Some).chain(std::iter::repeat(None));
-        for ((pattern, default), arg) in params.iter().zip(args) {
+        for ((pattern, default), arg) in params.iter().zip(iter_option(args)) {
             let value = match arg {
                 Some(value) => value,
                 None => match default {
@@ -169,6 +172,15 @@ impl factory::Context<Expr, Pattern, Value, RuntimeError> for Context {
         match pattern {
             Pattern::Ident(ident, _) => {
                 self.0.set(ident.into(), value)?;
+                Ok(())
+            },
+            Pattern::Array(pats, _) => {
+                for (pattern, value) in pats.iter().zip(iter_option(value.into_array()?)) {
+                    self.bind(pattern, match value {
+                        Some(rc) => Value::from_rc(rc),
+                        _ => Value::Null,
+                    })?;
+                }
                 Ok(())
             },
         }
